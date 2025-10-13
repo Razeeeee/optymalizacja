@@ -70,7 +70,7 @@ void lab1()
 {
 	/*
 	Link do excela:
-
+	https://docs.google.com/spreadsheets/d/1cG12sYTO_ambfhdUiorknPooRxzYnViA0UMpRMmPSZA/edit?usp=sharing
 	*/
 
 	solution::clear_calls();
