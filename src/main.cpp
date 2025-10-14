@@ -141,9 +141,8 @@ void lab1()
 	// Kolumny: x0, a_expansion, b_expansion, expansion_calls, fib_x, fib_y, fib_calls, fib_minimum_type, lag_x, lag_y, lag_calls, lag_minimum_type
 	ofstream csvFile("../data/wyniki_lab1_fun_test.csv");
 	
-	// Globalne minima znajdują się w x=0 i x=62.7
-	double global_min_x1 = 0.0;
-	double global_min_x2 = 62.7;
+	// Globalne minimum znajduje się w x=62.7
+	double global_min_x = 62.7;
 	double tolerance = 5.0; // tolerancja do określenia czy minimum jest globalne
 	
 	// Dla każdego alpha
@@ -181,14 +180,14 @@ void lab1()
 				solution fib_opt = fib(ff1T, current_interval[0], current_interval[1], epsilon);
 				int fib_calls = solution::f_calls;
 				double fib_x = m2d(fib_opt.x);
-				string fib_min_type = (abs(fib_x - global_min_x1) < tolerance || abs(fib_x - global_min_x2) < tolerance) ? "globalne" : "lokalne";
+				string fib_min_type = (abs(fib_x - global_min_x) < tolerance) ? "globalne" : "lokalne";
 				
 				// Lagrange
 				solution::clear_calls();
 				solution lag_opt = lag(ff1T, current_interval[0], current_interval[1], epsilon, gamma, Nmax);
 				int lag_calls = solution::f_calls;
 				double lag_x = m2d(lag_opt.x);
-				string lag_min_type = (abs(lag_x - global_min_x1) < tolerance || abs(lag_x - global_min_x2) < tolerance) ? "globalne" : "lokalne";
+				string lag_min_type = (abs(lag_x - global_min_x) < tolerance) ? "globalne" : "lokalne";
 				
 				// Zapisywanie do CSV
 				csvFile << current_x0 << "," 
