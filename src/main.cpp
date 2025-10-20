@@ -1,10 +1,10 @@
 /*********************************************
 Kod stanowi uzupe�nienie materia��w do �wicze�
 w ramach przedmiotu metody optymalizacji.
-Kod udost�pniony na licencji CC BY-SA 3.0
-Autor: dr in�. �ukasz Sztangret
+Kod udostępniony na licencji CC BY-SA 3.0
+Autor: dr inż. Łukasz Sztangret
 Katedra Informatyki Stosowanej i Modelowania
-Akademia G�rniczo-Hutnicza
+Akademia Górniczo-Hutnicza
 Data ostatniej modyfikacji: 30.09.2025
 *********************************************/
 
@@ -215,7 +215,115 @@ void lab1()
 	}
 	
 	csvFile.close();
-	cout << "Wyniki zapisane do pliku wyniki_lab1.csv\n";
+	cout << "Wyniki zapisane do pliku wyniki_lab1_fun_test.csv\n";
+
+	cout << "\n=== PROBLEM RZECZYWISTY - OPTYMALIZACJA ZBIORNIKOW ===\n";
+	solution::clear_calls();
+	
+	double x0_real = 50.0;
+	double d_real = 5.0;
+	double alpha_real = 1.5;
+	int Nmax_real = 1000;
+	double epsilon_real = 1e-2;
+	
+	double* interval_real = nullptr;
+	try
+	{
+		interval_real = expansion(ff1R, x0_real, d_real, alpha_real, Nmax_real);
+		cout << "Przedzial poszukiwan: [" << interval_real[0] << ", " << interval_real[1] << "] cm^2\n";
+		solution::clear_calls();
+	}
+	catch (string EX_INFO)
+	{
+		cout << "Blad podczas ekspansji: " << EX_INFO << "\n";
+		return;
+	}
+	
+	solution opt_fib;
+	int fib_calls = 0;
+	try
+	{
+		opt_fib = fib(ff1R, interval_real[0], interval_real[1], epsilon_real);
+		fib_calls = solution::f_calls;
+		solution::clear_calls();
+		cout << "Fibonacci - DA: " << m2d(opt_fib.x) << " cm^2, y*: " << m2d(opt_fib.y) << ", wywolania: " << fib_calls << "\n";
+	}
+	catch (string EX_INFO)
+	{
+		cout << "Blad Fibonacci: " << EX_INFO << "\n";
+		return;
+	}
+	
+	solution opt_lag;
+	int lag_calls = 0;
+	double gamma_real = 1e-6;
+	try
+	{
+		opt_lag = lag(ff1R, interval_real[0], interval_real[1], epsilon_real, gamma_real, Nmax_real);
+		lag_calls = solution::f_calls;
+		solution::clear_calls();
+		cout << "Lagrange - DA: " << m2d(opt_lag.x) << " cm^2, y*: " << m2d(opt_lag.y) << ", wywolania: " << lag_calls << "\n";
+	}
+	catch (string EX_INFO)
+	{
+		cout << "Blad Lagrange: " << EX_INFO << "\n";
+		return;
+	}
+	
+	cout << "\n=== TABELA 3 ===\n";
+	cout << "DA_fib\ty*_fib\tcalls_fib\tDA_lag\ty*_lag\tcalls_lag\n";
+	cout << m2d(opt_fib.x) << "\t" << m2d(opt_fib.y) << "\t" << fib_calls << "\t"
+		 << m2d(opt_lag.x) << "\t" << m2d(opt_lag.y) << "\t" << lag_calls << "\n";
+	
+	cout << "\n=== SYMULACJE ===\n";
+	cout << "Kolumny CSV: t, VA_fib, VA_lag, VB_fib, VB_lag, TB_fib, TB_lag\n";
+	
+	matrix Y0_fib = matrix(3, 1);
+	Y0_fib(0) = 5.0; Y0_fib(1) = 1.0; Y0_fib(2) = 20.0;
+	matrix MT_fib = matrix(1, new double[1] { m2d(opt_fib.x) * 1e-4 });
+	matrix* Y_fib = solve_ode(df1, 0, 1, 2000, Y0_fib, NAN, MT_fib);
+	
+	matrix Y0_lag = matrix(3, 1);
+	Y0_lag(0) = 5.0; Y0_lag(1) = 1.0; Y0_lag(2) = 20.0;
+	matrix MT_lag = matrix(1, new double[1] { m2d(opt_lag.x) * 1e-4 });
+	matrix* Y_lag = solve_ode(df1, 0, 1, 2000, Y0_lag, NAN, MT_lag);
+	
+	ofstream csvSym("../data/symulacja_lab1_real.csv");
+	int n_sim = get_len(Y_fib[0]);
+	for (int i = 0; i < n_sim; ++i)
+	{
+		csvSym << Y_fib[0](i, 0) << ","
+				<< Y_fib[1](i, 0) << ","
+				<< Y_lag[1](i, 0) << ","
+				<< Y_fib[1](i, 1) << ","
+				<< Y_lag[1](i, 1) << ","
+				<< Y_fib[1](i, 2) << ","
+				<< Y_lag[1](i, 2) << "\n";
+	}
+	csvSym.close();
+	cout << "Wyniki symulacji zapisane do ../data/symulacja_lab1_real.csv\n";
+	
+	Y_fib[0].~matrix(); Y_fib[1].~matrix();
+	Y_lag[0].~matrix(); Y_lag[1].~matrix();
+	delete[] interval_real;
+	
+	// Dodatkowa symulacja dla DA = 50 cm^2
+	cout << "\n=== SYMULACJA DLA DA = 50 cm^2 ===\n";
+	matrix Y0_test = matrix(3, 1);
+	Y0_test(0) = 5.0; Y0_test(1) = 1.0; Y0_test(2) = 20.0;
+	matrix MT_test = matrix(1, new double[1] { 50.0 * 1e-4 }); // 50 cm^2 -> m^2
+	matrix* Y_test = solve_ode(df1, 0, 1, 2000, Y0_test, NAN, MT_test);
+	
+	int n_test = get_len(Y_test[0]);
+	double T_max_test = 0;
+	for (int i = 0; i < n_test; ++i)
+	{
+		if (Y_test[1](i, 2) > T_max_test)
+			T_max_test = Y_test[1](i, 2);
+	}
+	cout << "Maksymalna temperatura w zbiorniku B dla DA=50cm^2: " << T_max_test << " C\n";
+	
+	Y_test[0].~matrix(); Y_test[1].~matrix();
 }
 
 void lab2()
