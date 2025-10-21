@@ -62,11 +62,7 @@ endif
 # Uruchamianie programu
 run:
 	@echo $(GREEN)Uruchamianie programu...$(NC)
-ifeq ($(OS),Windows_NT)
-	@cd $(BUILD_DIR) && Optymalizacja.exe
-else
-	@cd $(BUILD_DIR) && ./Optymalizacja
-endif
+	@bash run.sh
 
 # Sprawdzenie czy plik wykonywalny istnieje
 check-executable:
