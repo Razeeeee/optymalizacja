@@ -26,7 +26,7 @@ int main()
 {
 	try
 	{
-		lab1();
+		lab2();
 	}
 	catch (string EX_INFO)
 	{
@@ -328,8 +328,330 @@ void lab1()
 
 void lab2()
 {
+	// Excel
+	// https://docs.google.com/spreadsheets/d/1H7ypVKu4YyRn_saU08J23drAsOx_1Rzn/edit?usp=sharing&ouid=117458587915467310851&rtpof=true&sd=true
 
+	/*
+	Testowa funkcja celu Lab 2:
+	f(x1, x2) = x1^2 + x2^2 - cos(2.5*pi*x1) - cos(2.5*pi*x2) + 2
+	Punkt startowy: x1 ∈ [-1, 1], x2 ∈ [-1, 1]
+	Optymalizacja: metoda Hooke'a-Jeevesa i metoda Rosenbrocka
+	Minimum globalne: f(0, 0) = 0
+	*/
+	
+	cout << "=== LAB 2: Optymalizacja wielowymiarowa ===\n\n";
+	
+	// Parametry optymalizacji
+	double epsilon = 1e-3;
+	int Nmax = 10000;
+	double alpha_HJ = 0.5;		// współczynnik redukcji kroku dla Hooke-Jeeves
+	double alpha_Rosen = 2.0;	// współczynnik zwiększenia kroku dla Rosenbrocka
+	double beta_Rosen = 0.5;	// współczynnik zmniejszenia kroku dla Rosenbrocka
+	
+	// Różne długości kroku startowego
+	double step_sizes[3] = { 0.01, 0.05, 0.075 };
+	
+	// Globalne minimum: (0, 0) z wartością funkcji = 0
+	double global_min_x1 = 0.0;
+	double global_min_x2 = 0.0;
+	double tolerance = 0.1;		// tolerancja do określenia czy minimum jest globalne
+	
+	// Pliki CSV dla wyników
+	ofstream csv_tabela1("data/lab2_tabela1.csv");
+	ofstream csv_tabela2("data/lab2_tabela2.csv");
+	
+	// Opis kolumn dla tabeli 1 (bez nagłówka w pliku CSV)
+	cout << "TABELA 1 - Struktura kolumn (12 kolumn, 300 wierszy):\n";
+	cout << "  Kol 1-2:   x1(0), x2(0) - punkt startowy\n";
+	cout << "  Kol 3-7:   Hooke-Jeeves -> x1, x2, y, fcalls, is_global\n";
+	cout << "  Kol 8-12:  Rosenbrock -> x1, x2, y, fcalls, is_global\n";
+	cout << "  Wiersze 1-100:   krok = 0.01\n";
+	cout << "  Wiersze 101-200: krok = 0.05\n";
+	cout << "  Wiersze 201-300: krok = 0.075\n\n";
+	
+	cout << "TABELA 2 - Struktura kolumn (11 kolumn, 3 wiersze - średnie dla minimów globalnych):\n";
+	cout << "  Kol 1:     długość kroku\n";
+	cout << "  Kol 2-6:   Hooke-Jeeves -> x1_śr, x2_śr, y_śr, fcalls_śr, liczba_globalnych\n";
+	cout << "  Kol 7-11:  Rosenbrock -> x1_śr, x2_śr, y_śr, fcalls_śr, liczba_globalnych\n\n";
+	
+	srand(time(nullptr));
+	
+	// Dla każdego rozmiaru kroku
+	for (int s_idx = 0; s_idx < 3; s_idx++)
+	{
+		double step_size = step_sizes[s_idx];
+		cout << "Analiza dla kroku startowego s = " << step_size << "\n";
+		
+		// Statystyki dla średnich - teraz ze WSZYSTKICH optymalizacji
+		int hj_global_count = 0, rosen_global_count = 0;
+		double hj_fcalls_sum = 0, rosen_fcalls_sum = 0;
+		double hj_f_sum = 0, rosen_f_sum = 0;
+		double hj_x1_sum = 0, hj_x2_sum = 0;
+		double rosen_x1_sum = 0, rosen_x2_sum = 0;
+		
+		// 100 optymalizacji dla każdej metody
+		for (int run = 0; run < 100; run++)
+		{
+			// Losowy punkt startowy w przedziale [-1, 1] x [-1, 1]
+			matrix x0(2, 1);
+			x0(0) = (rand() / (double)RAND_MAX) * 2.0 - 1.0;	// x1 ∈ [-1, 1]
+			x0(1) = (rand() / (double)RAND_MAX) * 2.0 - 1.0;	// x2 ∈ [-1, 1]
+			
+			// ===== METODA HOOKE'A-JEEVESA =====
+			solution::clear_calls();
+			solution opt_hj = HJ(ff2T, x0, step_size, alpha_HJ, epsilon, Nmax);
+			int hj_fcalls = solution::f_calls;
+			
+			// Sprawdzenie czy znaleziono minimum globalne
+			double dist_hj = sqrt(pow(opt_hj.x(0) - global_min_x1, 2) + pow(opt_hj.x(1) - global_min_x2, 2));
+			bool is_global_hj = (dist_hj < tolerance);
+			
+			// Statystyki dla średnich - wszystkie próby
+			hj_x1_sum += opt_hj.x(0);
+			hj_x2_sum += opt_hj.x(1);
+			hj_fcalls_sum += hj_fcalls;
+			hj_f_sum += opt_hj.y(0);
+			if (is_global_hj)
+				hj_global_count++;
+			
+			// ===== METODA ROSENBROCKA =====
+			solution::clear_calls();
+			matrix s0_rosen(2, 1);
+			s0_rosen(0) = step_size;
+			s0_rosen(1) = step_size;
+			solution opt_rosen = Rosen(ff2T, x0, s0_rosen, alpha_Rosen, beta_Rosen, epsilon, Nmax);
+			int rosen_fcalls = solution::f_calls;
+			
+			// Sprawdzenie czy znaleziono minimum globalne
+			double dist_rosen = sqrt(pow(opt_rosen.x(0) - global_min_x1, 2) + pow(opt_rosen.x(1) - global_min_x2, 2));
+			bool is_global_rosen = (dist_rosen < tolerance);
+			
+			// Statystyki dla średnich - wszystkie próby
+			rosen_x1_sum += opt_rosen.x(0);
+			rosen_x2_sum += opt_rosen.x(1);
+			rosen_fcalls_sum += rosen_fcalls;
+			rosen_f_sum += opt_rosen.y(0);
+			if (is_global_rosen)
+				rosen_global_count++;
+			
+			// Zapisanie do tabeli 1 (jeden wiersz z wynikami obu metod)
+			// Format: x1(0), x2(0), HJ_x1, HJ_x2, HJ_y, HJ_fcalls, HJ_global, Rosen_x1, Rosen_x2, Rosen_y, Rosen_fcalls, Rosen_global
+			csv_tabela1 << x0(0) << "," << x0(1) << ","
+						<< opt_hj.x(0) << "," << opt_hj.x(1) << "," << opt_hj.y(0) << "," << hj_fcalls << "," << (is_global_hj ? "TAK" : "NIE") << ","
+						<< opt_rosen.x(0) << "," << opt_rosen.x(1) << "," << opt_rosen.y(0) << "," << rosen_fcalls << "," << (is_global_rosen ? "TAK" : "NIE") << "\n";
+		}
+		
+		// Zapisanie średnich do tabeli 2 - średnie ze WSZYSTKICH 100 prób
+		// Format: krok, HJ_x1_śr, HJ_x2_śr, HJ_y_śr, HJ_fcalls_śr, HJ_count_global, Rosen_x1_śr, Rosen_x2_śr, Rosen_y_śr, Rosen_fcalls_śr, Rosen_count_global
+		csv_tabela2 << step_size << ","
+					<< (hj_x1_sum / 100.0) << ","
+					<< (hj_x2_sum / 100.0) << ","
+					<< (hj_f_sum / 100.0) << ","
+					<< (hj_fcalls_sum / 100.0) << ","
+					<< hj_global_count << ","
+					<< (rosen_x1_sum / 100.0) << ","
+					<< (rosen_x2_sum / 100.0) << ","
+					<< (rosen_f_sum / 100.0) << ","
+					<< (rosen_fcalls_sum / 100.0) << ","
+					<< rosen_global_count << "\n";
+		
+		cout << "  HJ: " << hj_global_count << " optymalizacji znalazło minimum globalne\n";
+		cout << "  Rosenbrock: " << rosen_global_count << " optymalizacji znalazło minimum globalne\n\n";
+	}
+	
+	csv_tabela1.close();
+	csv_tabela2.close();
+	
+	cout << "Wyniki zapisane do:\n";
+	cout << "  - ../data/lab2_tabela1.csv (wszystkie wyniki)\n";
+	cout << "  - ../data/lab2_tabela2.csv (średnie dla minimum globalnego)\n\n";
+	
+	// ===== WYKRES KONTUROWY - ŚCIEŻKA OPTYMALIZACJI =====
+	cout << "Generowanie ścieżki optymalizacji dla wykresu konturowego...\n";
+	cout << "TABELA 3 - Struktura kolumn (5 kolumn):\n";
+	cout << "  Kol 1:     nr iteracji\n";
+	cout << "  Kol 2-3:   Hooke-Jeeves -> x1, x2\n";
+	cout << "  Kol 4-5:   Rosenbrock -> x1, x2\n\n";
+	
+	// Wybrany przypadek: krok s=0.05, punkt startowy bliżej globalnego minimum
+	matrix x0_example(2, 1);
+	x0_example(0) = 0.3;
+	x0_example(1) = 0.2;
+	
+	// Plik CSV dla ścieżek optymalizacji
+	ofstream csv_wykres("data/lab2_wykres.csv");
+	
+	// ===== HOOKE-JEEVES Z ZAPISEM HISTORII =====
+	solution::clear_calls();
+	vector<matrix> history_hj;
+	
+	// Prosta modyfikacja HJ - zapisujemy punkty bazowe
+	solution XB_hj(x0_example);
+	XB_hj.fit_fun(ff2T);
+	history_hj.push_back(XB_hj.x);
+	
+	double s_wykres = 0.05;
+	int iter = 0;
+	int max_iter = 1000;
+	
+	while (iter < max_iter)
+	{
+		solution X_hj = HJ_trial(ff2T, XB_hj, s_wykres);
+		
+		if (X_hj.y < XB_hj.y)
+		{
+			while (true)
+			{
+				solution XB_old_hj = XB_hj;
+				XB_hj = X_hj;
+				history_hj.push_back(XB_hj.x);  // Zapisz nowy punkt bazowy
+				
+				matrix x_new_hj = 2.0 * XB_hj.x - XB_old_hj.x;
+				X_hj.x = x_new_hj;
+				X_hj.fit_fun(ff2T);
+				
+				X_hj = HJ_trial(ff2T, X_hj, s_wykres);
+				
+				if (X_hj.y >= XB_hj.y)
+					break;
+			}
+		}
+		else
+		{
+			s_wykres = alpha_HJ * s_wykres;
+			// Zapisz punkt bazowy nawet gdy redukowaliśmy krok
+			history_hj.push_back(XB_hj.x);
+		}
+		
+		if (s_wykres < epsilon || solution::f_calls > Nmax)
+			break;
+			
+		iter++;
+	}
+	
+	// ===== ROSENBROCK Z ZAPISEM HISTORII =====
+	solution::clear_calls();
+	vector<matrix> history_rosen;
+	
+	int n = 2;
+	matrix l_rosen(n, n);
+	for (int i = 0; i < n; ++i)
+		l_rosen(i, i) = 1.0;
+	
+	matrix p_rosen(n, 1), lambda_rosen(n, 1);
+	solution X_rosen(x0_example);
+	X_rosen.fit_fun(ff2T);
+	history_rosen.push_back(X_rosen.x);
+	
+	matrix s_rosen(n, 1);
+	s_rosen(0) = 0.05;
+	s_rosen(1) = 0.05;
+	
+	iter = 0;
+	while (iter < max_iter)
+	{
+		for (int j = 0; j < n; ++j)
+		{
+			p_rosen(j) = 0;
+			lambda_rosen(j) = 0;
+		}
+		
+		bool any_change = false;
+		while (true)
+		{
+			for (int j = 0; j < n; ++j)
+			{
+				solution X_new_rosen = X_rosen;
+				for (int i = 0; i < n; ++i)
+					X_new_rosen.x(i) = X_rosen.x(i) + s_rosen(j) * l_rosen(i, j);
+				X_new_rosen.fit_fun(ff2T);
+				
+				if (X_new_rosen.y < X_rosen.y)
+				{
+					X_rosen = X_new_rosen;
+					history_rosen.push_back(X_rosen.x);  // Zapisz każdy poprawny krok
+					p_rosen(j) = p_rosen(j) + s_rosen(j);
+					lambda_rosen(j) = lambda_rosen(j) + 1;
+					s_rosen(j) = alpha_Rosen * s_rosen(j);
+					any_change = true;
+				}
+				else
+				{
+					s_rosen(j) = -beta_Rosen * s_rosen(j);
+					lambda_rosen(j) = lambda_rosen(j) - 1;
+				}
+			}
+			
+			if (solution::f_calls > Nmax)
+				break;
+			
+			bool any_lambda_nonzero = false;
+			for (int j = 0; j < n; ++j)
+			{
+				if (lambda_rosen(j) != 0)
+				{
+					any_lambda_nonzero = true;
+					break;
+				}
+			}
+			if (!any_lambda_nonzero)
+				break;
+		}
+		
+		// Zapisz punkt po zakończeniu wewnętrznej pętli, jeśli nie było zmian
+		if (!any_change)
+			history_rosen.push_back(X_rosen.x);
+		
+		bool change_small = true;
+		for (int j = 0; j < n; ++j)
+		{
+			if (abs(p_rosen(j)) >= epsilon)
+			{
+				change_small = false;
+				break;
+			}
+		}
+		
+		if (change_small || solution::f_calls > Nmax)
+			break;
+		
+		// Gram-Schmidt (uproszczony)
+		for (int j = 0; j < n; ++j)
+			s_rosen(j) = 0.5 * s_rosen(j);
+			
+		iter++;
+	}
+	
+	// Zapisanie do CSV
+	size_t max_history = max(history_hj.size(), history_rosen.size());
+	
+	for (size_t i = 0; i < max_history; ++i)
+	{
+		csv_wykres << i << ",";
+		
+		if (i < history_hj.size())
+			csv_wykres << history_hj[i](0) << "," << history_hj[i](1) << ",";
+		else
+			csv_wykres << ",,";
+			
+		if (i < history_rosen.size())
+			csv_wykres << history_rosen[i](0) << "," << history_rosen[i](1);
+		else
+			csv_wykres << ",";
+			
+		csv_wykres << "\n";
+	}
+	
+	csv_wykres.close();
+	
+	cout << "Punkt startowy: (" << x0_example(0) << ", " << x0_example(1) << ")\n";
+	cout << "HJ: " << history_hj.size() << " punktów bazowych\n";
+	cout << "Rosenbrock: " << history_rosen.size() << " punktów bazowych\n";
+	cout << "Zapisano do: data/lab2_wykres.csv\n\n";
+	
+	cout << "=== LAB 2 ZAKOŃCZONE ===\n";
 }
+
 
 void lab3()
 {

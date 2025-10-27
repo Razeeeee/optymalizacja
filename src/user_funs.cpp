@@ -79,3 +79,11 @@ matrix df1(double t, matrix Y, matrix ud1, matrix ud2)
 	dY(2) = (abs(VB) < 1e-9) ? 0 : (Fout_A * (TA_in - TB) + Fin_B * (TB_in_temp - TB)) / VB;	// zmiana temperatury w zbiorniku B
 	return dY;
 }
+
+matrix ff2T(matrix x, matrix ud1, matrix ud2)				// funkcja celu dla przypadku testowego Lab 2
+{
+	matrix y;
+	// f(x1, x2) = x1^2 + x2^2 - cos(2.5*pi*x1) - cos(2.5*pi*x2) + 2
+	y = pow(x(0), 2) + pow(x(1), 2) - cos(2.5 * M_PI * x(0)) - cos(2.5 * M_PI * x(1)) + 2.0;
+	return y;
+}

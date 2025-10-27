@@ -249,10 +249,55 @@ solution HJ(matrix (*ff)(matrix, matrix, matrix), matrix x0, double s, double al
 {
 	try
 	{
-		solution Xopt;
-		// Tu wpisz kod funkcji
-
-		return Xopt;
+		solution XB(x0);								// 1. XB(0) = x0
+		XB.fit_fun(ff, ud1, ud2);
+		
+		solution XB_old;
+		int n = get_len(x0);							// liczba zmiennych
+		
+		while (true)									// 2. repeat
+		{
+			solution X = HJ_trial(ff, XB, s, ud1, ud2);	// 3. X = HJ_trial(XB(i), s)
+			
+			if (X.y < XB.y)								// 4. if f(X) < f(XB(i)) then
+			{
+				while (true)							// 5. repeat
+				{
+					XB_old = XB;						// 6. XB_old = XB(i)
+					XB = X;								// 7. XB(i+1) = X
+					
+					// 8. X = 2*XB(i+1) - XB_old
+					matrix x_new = 2.0 * XB.x - XB_old.x;
+					X.x = x_new;
+					X.fit_fun(ff, ud1, ud2);
+					
+					// 9. X = HJ_trial(X, s)
+					X = HJ_trial(ff, X, s, ud1, ud2);
+					
+					// 10. until f(X) >= f(XB(i+1))
+					if (X.y >= XB.y)
+						break;
+				}
+			}
+			else										// 11. else
+			{
+				s = alpha * s;							// 12. s = alpha * s
+			}											// 13. end if
+			
+			// 14. if fcalls > Nmax then
+			if (solution::f_calls > Nmax)
+			{
+				XB.flag = 0;							// 15. return XB(i), fcalls > Nmax
+				return XB;
+			}											// 16. end if
+			
+			// 17. until s < epsilon
+			if (s < epsilon)
+			{
+				XB.flag = 1;							// 18. return XB(i)
+				return XB;
+			}
+		}
 	}
 	catch (string ex_info)
 	{
@@ -264,9 +309,42 @@ solution HJ_trial(matrix (*ff)(matrix, matrix, matrix), solution XB, double s, m
 {
 	try
 	{
-		// Tu wpisz kod funkcji
-
-		return XB;
+		int n = get_len(XB.x);							// 1. liczba zmiennych
+		solution X = XB;								// 2. X = XB
+		
+		// 3. for j = 0 to n-1 do
+		for (int j = 0; j < n; ++j)
+		{
+			// 4. X(j) = X(j) + s
+			matrix x_plus = X.x;
+			x_plus(j) = x_plus(j) + s;
+			solution X_plus(x_plus);
+			X_plus.fit_fun(ff, ud1, ud2);
+			
+			// 5. if f(X) < f(XB) then
+			if (X_plus.y < XB.y)
+			{
+				XB = X_plus;							// 6. XB = X
+			}
+			else										// 7. else
+			{
+				// 8. X(j) = XB(j) - s
+				matrix x_minus = XB.x;
+				x_minus(j) = x_minus(j) - s;
+				solution X_minus(x_minus);
+				X_minus.fit_fun(ff, ud1, ud2);
+				
+				// 9. if f(X) < f(XB) then
+				if (X_minus.y < XB.y)
+				{
+					XB = X_minus;						// 10. XB = X
+				}										// 11. end if
+			}											// 12. end if
+			
+			X = XB;
+		}												// 13. end for
+		
+		return XB;										// 14. return XB
 	}
 	catch (string ex_info)
 	{
@@ -278,10 +356,164 @@ solution Rosen(matrix (*ff)(matrix, matrix, matrix), matrix x0, matrix s0, doubl
 {
 	try
 	{
-		solution Xopt;
-		// Tu wpisz kod funkcji
-
-		return Xopt;
+		int n = get_len(x0);								// liczba zmiennych
+		matrix l(n, n);										// macierz kierunków (identity matrix)
+		for (int i = 0; i < n; ++i)
+			l(i, i) = 1.0;
+		
+		matrix p(n, 1), lambda(n, 1);						// przyrosty i mnożniki
+		solution X(x0);										// 1. X(0) = x0
+		X.fit_fun(ff, ud1, ud2);
+		solution X_old = X;
+		matrix s = s0;										// długości kroków
+		
+		while (true)										// 2. repeat
+		{
+			// 3. for j = 0 to n-1 do
+			for (int j = 0; j < n; ++j)
+			{
+				p(j) = 0;									// 4. p(j) = 0
+				lambda(j) = 0;								// 5. lambda(j) = 0
+			}												// 6. end for
+			
+			// 7. repeat
+			while (true)
+			{
+				// 8. for j = 0 to n-1 do
+				for (int j = 0; j < n; ++j)
+				{
+					solution X_new = X;
+					// 9. X = X + s(j) * l(j)
+					for (int i = 0; i < n; ++i)
+						X_new.x(i) = X.x(i) + s(j) * l(i, j);
+					X_new.fit_fun(ff, ud1, ud2);
+					
+					// 10. if f(X) < f(X(i)) then
+					if (X_new.y < X.y)
+					{
+						X = X_new;							// 11. X(i+1) = X
+						p(j) = p(j) + s(j);					// 12. p(j) = p(j) + s(j)
+						lambda(j) = lambda(j) + 1;			// 13. lambda(j) = lambda(j) + 1
+						s(j) = alpha * s(j);				// 14. s(j) = alpha * s(j)
+					}
+					else									// 15. else
+					{
+						s(j) = -beta * s(j);				// 16. s(j) = -beta * s(j)
+						lambda(j) = lambda(j) - 1;			// 17. lambda(j) = lambda(j) - 1
+					}										// 18. end if
+				}											// 19. end for
+				
+				// 20. if fcalls > Nmax then
+				if (solution::f_calls > Nmax)
+				{
+					X.flag = 0;								// 21. return X, fcalls > Nmax
+					return X;
+				}											// 22. end if
+				
+				// 23. until any(lambda(j) != 0) = false
+				bool any_lambda_nonzero = false;
+				for (int j = 0; j < n; ++j)
+				{
+					if (lambda(j) != 0)
+					{
+						any_lambda_nonzero = true;
+						break;
+					}
+				}
+				if (!any_lambda_nonzero)
+					break;
+			}
+			
+			// Sprawdzenie warunku stopu
+			bool change_small = true;
+			for (int j = 0; j < n; ++j)
+			{
+				if (abs(p(j)) >= epsilon)
+				{
+					change_small = false;
+					break;
+				}
+			}
+			
+			// 24. if ||p|| < epsilon then
+			if (change_small)
+			{
+				X.flag = 1;									// 25. return X
+				return X;
+			}												// 26. end if
+			
+			// 27. Gram-Schmidt orthogonalization
+			// Q = [l(0), l(1), ..., l(n-1)]
+			matrix Q = l;									// kopiujemy aktualną bazę
+			matrix v = p;									// v(0) = p
+			
+			// 28. for j = 1 to n-1 do
+			for (int j = 1; j < n; ++j)
+			{
+				matrix v_j(n, 1);
+				for (int i = 0; i < n; ++i)
+					v_j(i) = Q(i, j);
+				
+				// 29. v(j) = Q(j)
+				// 30. for k = 0 to j-1 do
+				for (int k = 0; k < j; ++k)
+				{
+					matrix v_k(n, 1);
+					for (int i = 0; i < n; ++i)
+						v_k(i) = (k == 0) ? v(i) : Q(i, k);
+					
+					// 31. v(j) = v(j) - (v(k)^T * Q(j)) / (v(k)^T * v(k)) * v(k)
+					double numerator = 0, denominator = 0;
+					for (int i = 0; i < n; ++i)
+					{
+						numerator += v_k(i) * v_j(i);
+						denominator += v_k(i) * v_k(i);
+					}
+					
+					if (abs(denominator) > 1e-10)
+					{
+						double coeff = numerator / denominator;
+						for (int i = 0; i < n; ++i)
+							v_j(i) = v_j(i) - coeff * v_k(i);
+					}
+				}												// 32. end for
+				
+				// Zapisujemy v_j
+				for (int i = 0; i < n; ++i)
+				{
+					if (j == 1)
+						v(i) = v_j(i);						// przesuwamy v
+					Q(i, j - 1) = v_j(i);
+				}
+			}													// 33. end for
+			
+			// 34. for j = 0 to n-1 do
+			for (int j = 0; j < n; ++j)
+			{
+				double norm = 0;
+				for (int i = 0; i < n; ++i)
+				{
+					double val = (j == 0) ? v(i) : Q(i, j - 1);
+					norm += val * val;
+				}
+				norm = sqrt(norm);
+				
+				// 35. l(j) = v(j) / ||v(j)||
+				if (norm > 1e-10)
+				{
+					for (int i = 0; i < n; ++i)
+					{
+						if (j == 0)
+							l(i, j) = v(i) / norm;
+						else
+							l(i, j) = Q(i, j - 1) / norm;
+					}
+				}
+				
+				// 36. s(j) = 0.5 * s(j)
+				s(j) = 0.5 * s(j);
+			}													// 37. end for
+		}
 	}
 	catch (string ex_info)
 	{
