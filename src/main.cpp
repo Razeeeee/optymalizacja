@@ -466,7 +466,7 @@ void lab2()
 	x0_example(1) = 0.2;
 	
 	// Plik CSV dla ścieżek optymalizacji
-	ofstream csv_wykres("data/lab2_wykres.csv");
+	ofstream csv_wykres("../data/lab2_wykres.csv");
 	
 	// ===== HOOKE-JEEVES Z ZAPISEM HISTORII =====
 	solution::clear_calls();
