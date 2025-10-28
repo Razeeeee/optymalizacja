@@ -356,163 +356,174 @@ solution Rosen(matrix (*ff)(matrix, matrix, matrix), matrix x0, matrix s0, doubl
 {
 	try
 	{
-		int n = get_len(x0);								// liczba zmiennych
-		matrix l(n, n);										// macierz kierunków (identity matrix)
-		for (int i = 0; i < n; ++i)
-			l(i, i) = 1.0;
+		// 1: i = 0
+		int i = 0;
+		int n = get_len(x0);
 		
-		matrix p(n, 1), lambda(n, 1);						// przyrosty i mnożniki
-		solution X(x0);										// 1. X(0) = x0
-		X.fit_fun(ff, ud1, ud2);
-		solution X_old = X;
-		matrix s = s0;										// długości kroków
+		// 2: dj(0) = ej, j = 1, 2, …, n
+		matrix D = ident_mat(n);  // macierz kierunków (kolumny to wektory bazowe)
 		
-		while (true)										// 2. repeat
+		// 3: λj(0) = 0, j = 1, 2, …, n
+		matrix lambda(n, 1);  // suma przemieszczeń w każdym kierunku
+		
+		// 4: pj(0) = 0, j = 1, 2, …, n
+		matrix p(n, 1);  // liczba porażek w każdym kierunku
+		
+		// 5: xB = x(0)
+		solution xB(x0);
+		xB.fit_fun(ff, ud1, ud2);
+		
+		matrix s = s0;  // długości kroków
+		
+		// 6: repeat
+		while (true)
 		{
-			// 3. for j = 0 to n-1 do
+			// 7: for j = 1 to n do
 			for (int j = 0; j < n; ++j)
 			{
-				p(j) = 0;									// 4. p(j) = 0
-				lambda(j) = 0;								// 5. lambda(j) = 0
-			}												// 6. end for
-			
-			// 7. repeat
-			while (true)
-			{
-				// 8. for j = 0 to n-1 do
-				for (int j = 0; j < n; ++j)
+				// 8: if f(xB + sj(i)·dj(i)) < f(xB) then
+				matrix x_new = xB.x + s(j) * D[j];
+				solution x_trial(x_new);
+				x_trial.fit_fun(ff, ud1, ud2);
+				
+				if (x_trial.y < xB.y)
 				{
-					solution X_new = X;
-					// 9. X = X + s(j) * l(j)
-					for (int i = 0; i < n; ++i)
-						X_new.x(i) = X.x(i) + s(j) * l(i, j);
-					X_new.fit_fun(ff, ud1, ud2);
+					// 9: xB = xB + sj(i)·dj(i)
+					xB = x_trial;
 					
-					// 10. if f(X) < f(X(i)) then
-					if (X_new.y < X.y)
-					{
-						X = X_new;							// 11. X(i+1) = X
-						p(j) = p(j) + s(j);					// 12. p(j) = p(j) + s(j)
-						lambda(j) = lambda(j) + 1;			// 13. lambda(j) = lambda(j) + 1
-						s(j) = alpha * s(j);				// 14. s(j) = alpha * s(j)
-					}
-					else									// 15. else
-					{
-						s(j) = -beta * s(j);				// 16. s(j) = -beta * s(j)
-						lambda(j) = lambda(j) - 1;			// 17. lambda(j) = lambda(j) - 1
-					}										// 18. end if
-				}											// 19. end for
-				
-				// 20. if fcalls > Nmax then
-				if (solution::f_calls > Nmax)
-				{
-					X.flag = 0;								// 21. return X, fcalls > Nmax
-					return X;
-				}											// 22. end if
-				
-				// 23. until any(lambda(j) != 0) = false
-				bool any_lambda_nonzero = false;
-				for (int j = 0; j < n; ++j)
-				{
-					if (lambda(j) != 0)
-					{
-						any_lambda_nonzero = true;
-						break;
-					}
+					// 10: λj(i+1) = λj(i) + sj(i)
+					lambda(j) = lambda(j) + s(j);
+					
+					// 11: sj(i+1) = α·sj(i)
+					s(j) = alpha * s(j);
 				}
-				if (!any_lambda_nonzero)
-					break;
-			}
-			
-			// Sprawdzenie warunku stopu
-			bool change_small = true;
-			for (int j = 0; j < n; ++j)
-			{
-				if (abs(p(j)) >= epsilon)
+				else
 				{
-					change_small = false;
-					break;
+					// 12: else
+					// 13: sj(i+1) = -β·sj(i)
+					s(j) = -beta * s(j);
+					
+					// 14: pj(i+1) = pj(i) + 1
+					p(j) = p(j) + 1;
+					// 15: end if
 				}
 			}
+			// 16: end for
 			
-			// 24. if ||p|| < epsilon then
-			if (change_small)
-			{
-				X.flag = 1;									// 25. return X
-				return X;
-			}												// 26. end if
+			// 17: i = i + 1
+			i = i + 1;
 			
-			// 27. Gram-Schmidt orthogonalization
-			// Q = [l(0), l(1), ..., l(n-1)]
-			matrix Q = l;									// kopiujemy aktualną bazę
-			matrix v = p;									// v(0) = p
+			// 18: x(i) = xB  (już mamy w xB)
 			
-			// 28. for j = 1 to n-1 do
-			for (int j = 1; j < n; ++j)
-			{
-				matrix v_j(n, 1);
-				for (int i = 0; i < n; ++i)
-					v_j(i) = Q(i, j);
-				
-				// 29. v(j) = Q(j)
-				// 30. for k = 0 to j-1 do
-				for (int k = 0; k < j; ++k)
-				{
-					matrix v_k(n, 1);
-					for (int i = 0; i < n; ++i)
-						v_k(i) = (k == 0) ? v(i) : Q(i, k);
-					
-					// 31. v(j) = v(j) - (v(k)^T * Q(j)) / (v(k)^T * v(k)) * v(k)
-					double numerator = 0, denominator = 0;
-					for (int i = 0; i < n; ++i)
-					{
-						numerator += v_k(i) * v_j(i);
-						denominator += v_k(i) * v_k(i);
-					}
-					
-					if (abs(denominator) > 1e-10)
-					{
-						double coeff = numerator / denominator;
-						for (int i = 0; i < n; ++i)
-							v_j(i) = v_j(i) - coeff * v_k(i);
-					}
-				}												// 32. end for
-				
-				// Zapisujemy v_j
-				for (int i = 0; i < n; ++i)
-				{
-					if (j == 1)
-						v(i) = v_j(i);						// przesuwamy v
-					Q(i, j - 1) = v_j(i);
-				}
-			}													// 33. end for
+			// 19: if λj(i) ≠ 0 and pj(i) ≠ 0, j = 1, 2, …, n then
+			bool all_lambda_nonzero = true;
+			bool all_p_nonzero = true;
 			
-			// 34. for j = 0 to n-1 do
 			for (int j = 0; j < n; ++j)
 			{
-				double norm = 0;
-				for (int i = 0; i < n; ++i)
-				{
-					double val = (j == 0) ? v(i) : Q(i, j - 1);
-					norm += val * val;
-				}
-				norm = sqrt(norm);
+				if (lambda(j) == 0)
+					all_lambda_nonzero = false;
+				if (p(j) == 0)
+					all_p_nonzero = false;
+			}
+			
+			if (all_lambda_nonzero && all_p_nonzero)
+			{
+				// 20: zmiana bazy kierunków dj(i)
+				// Budujemy nową bazę przez ortogonalizację Grama-Schmidta
+				// Pierwszy wektor to suma przemieszczeń
 				
-				// 35. l(j) = v(j) / ||v(j)||
-				if (norm > 1e-10)
+				matrix D_new = ident_mat(n);
+				
+				// Pierwszy nowy kierunek: suma ważonych kierunków
+				matrix v0(n, 1);
+				for (int j = 0; j < n; ++j)
 				{
-					for (int i = 0; i < n; ++i)
+					for (int k = 0; k < n; ++k)
 					{
-						if (j == 0)
-							l(i, j) = v(i) / norm;
-						else
-							l(i, j) = Q(i, j - 1) / norm;
+						v0(k) = v0(k) + lambda(j) * D[j](k);
 					}
 				}
 				
-				// 36. s(j) = 0.5 * s(j)
-				s(j) = 0.5 * s(j);
-			}													// 37. end for
+				// Normalizacja pierwszego wektora
+				double norm0 = 0.0;
+				for (int k = 0; k < n; ++k)
+					norm0 += v0(k) * v0(k);
+				norm0 = sqrt(norm0);
+				
+				if (norm0 > 1e-15)
+				{
+					for (int k = 0; k < n; ++k)
+						D_new[0](k) = v0(k) / norm0;
+				}
+				
+				// Ortogonalizacja pozostałych wektorów
+				for (int j = 1; j < n; ++j)
+				{
+					matrix vj = D[j];
+					
+					// Ortogonalizacja względem już znormalizowanych wektorów
+					for (int k = 0; k < j; ++k)
+					{
+						double dot = 0.0;
+						for (int m = 0; m < n; ++m)
+							dot += vj(m) * D_new[k](m);
+						
+						for (int m = 0; m < n; ++m)
+							vj(m) = vj(m) - dot * D_new[k](m);
+					}
+					
+					// Normalizacja
+					double normj = 0.0;
+					for (int m = 0; m < n; ++m)
+						normj += vj(m) * vj(m);
+					normj = sqrt(normj);
+					
+					if (normj > 1e-15)
+					{
+						for (int m = 0; m < n; ++m)
+							D_new[j](m) = vj(m) / normj;
+					}
+				}
+				
+				D = D_new;
+				
+				// 21: λj(i) = 0, j = 1, 2, …, n
+				for (int j = 0; j < n; ++j)
+					lambda(j) = 0;
+				
+				// 22: pj(i) = 0, j = 1, 2, …, n
+				for (int j = 0; j < n; ++j)
+					p(j) = 0;
+				
+				// 23: sj(i) = sj(0), j = 1, 2, …, n
+				s = s0;
+				// 24: end if
+			}
+			
+			// 25: if fcalls > Nmax then
+			if (solution::f_calls > Nmax)
+			{
+				// 26: return error
+				xB.flag = 0;
+				return xB;
+				// 27: end if
+			}
+			
+			// 28: until maxj=1,…,n(|sj(i)|) < ε
+			double max_s = 0.0;
+			for (int j = 0; j < n; ++j)
+			{
+				if (abs(s(j)) > max_s)
+					max_s = abs(s(j));
+			}
+			
+			if (max_s < epsilon)
+			{
+				// 29: return x* = x(i)
+				xB.flag = 1;
+				return xB;
+			}
 		}
 	}
 	catch (string ex_info)

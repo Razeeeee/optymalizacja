@@ -357,8 +357,9 @@ void lab2()
 	double tolerance = 0.1;		// tolerancja do określenia czy minimum jest globalne
 	
 	// Pliki CSV dla wyników
-	ofstream csv_tabela1("data/lab2_tabela1.csv");
-	ofstream csv_tabela2("data/lab2_tabela2.csv");
+	ofstream csv_tabela1("../data/lab2_tabela1.csv");
+	ofstream csv_tabela2("../data/lab2_tabela2.csv");
+	ofstream csv_rosen("../data/rosen_results.csv");
 	
 	// Opis kolumn dla tabeli 1 (bez nagłówka w pliku CSV)
 	cout << "TABELA 1 - Struktura kolumn (12 kolumn, 300 wierszy):\n";
@@ -368,11 +369,6 @@ void lab2()
 	cout << "  Wiersze 1-100:   krok = 0.01\n";
 	cout << "  Wiersze 101-200: krok = 0.05\n";
 	cout << "  Wiersze 201-300: krok = 0.075\n\n";
-	
-	cout << "TABELA 2 - Struktura kolumn (11 kolumn, 3 wiersze - średnie dla minimów globalnych):\n";
-	cout << "  Kol 1:     długość kroku\n";
-	cout << "  Kol 2-6:   Hooke-Jeeves -> x1_śr, x2_śr, y_śr, fcalls_śr, liczba_globalnych\n";
-	cout << "  Kol 7-11:  Rosenbrock -> x1_śr, x2_śr, y_śr, fcalls_śr, liczba_globalnych\n\n";
 	
 	srand(time(nullptr));
 	
@@ -422,6 +418,9 @@ void lab2()
 			solution opt_rosen = Rosen(ff2T, x0, s0_rosen, alpha_Rosen, beta_Rosen, epsilon, Nmax);
 			int rosen_fcalls = solution::f_calls;
 			
+			// Zapisanie do rosen_results.csv
+			csv_rosen << opt_rosen.x(0) << "," << opt_rosen.x(1) << "," << opt_rosen.y(0) << "," << rosen_fcalls << "\n";
+			
 			// Sprawdzenie czy znaleziono minimum globalne
 			double dist_rosen = sqrt(pow(opt_rosen.x(0) - global_min_x1, 2) + pow(opt_rosen.x(1) - global_min_x2, 2));
 			bool is_global_rosen = (dist_rosen < tolerance);
@@ -437,23 +436,9 @@ void lab2()
 			// Zapisanie do tabeli 1 (jeden wiersz z wynikami obu metod)
 			// Format: x1(0), x2(0), HJ_x1, HJ_x2, HJ_y, HJ_fcalls, HJ_global, Rosen_x1, Rosen_x2, Rosen_y, Rosen_fcalls, Rosen_global
 			csv_tabela1 << x0(0) << "," << x0(1) << ","
-						<< opt_hj.x(0) << "," << opt_hj.x(1) << "," << opt_hj.y(0) << "," << hj_fcalls << "," << (is_global_hj ? "TAK" : "NIE") << ","
-						<< opt_rosen.x(0) << "," << opt_rosen.x(1) << "," << opt_rosen.y(0) << "," << rosen_fcalls << "," << (is_global_rosen ? "TAK" : "NIE") << "\n";
+						<< opt_hj.x(0) << "," << opt_hj.x(1) << "," << opt_hj.y(0) << "," << hj_fcalls << ",,"
+						<< opt_rosen.x(0) << "," << opt_rosen.x(1) << "," << opt_rosen.y(0) << "," << rosen_fcalls << ",\n";
 		}
-		
-		// Zapisanie średnich do tabeli 2 - średnie ze WSZYSTKICH 100 prób
-		// Format: krok, HJ_x1_śr, HJ_x2_śr, HJ_y_śr, HJ_fcalls_śr, HJ_count_global, Rosen_x1_śr, Rosen_x2_śr, Rosen_y_śr, Rosen_fcalls_śr, Rosen_count_global
-		csv_tabela2 << step_size << ","
-					<< (hj_x1_sum / 100.0) << ","
-					<< (hj_x2_sum / 100.0) << ","
-					<< (hj_f_sum / 100.0) << ","
-					<< (hj_fcalls_sum / 100.0) << ","
-					<< hj_global_count << ","
-					<< (rosen_x1_sum / 100.0) << ","
-					<< (rosen_x2_sum / 100.0) << ","
-					<< (rosen_f_sum / 100.0) << ","
-					<< (rosen_fcalls_sum / 100.0) << ","
-					<< rosen_global_count << "\n";
 		
 		cout << "  HJ: " << hj_global_count << " optymalizacji znalazło minimum globalne\n";
 		cout << "  Rosenbrock: " << rosen_global_count << " optymalizacji znalazło minimum globalne\n\n";
@@ -461,10 +446,12 @@ void lab2()
 	
 	csv_tabela1.close();
 	csv_tabela2.close();
+	csv_rosen.close();
 	
 	cout << "Wyniki zapisane do:\n";
 	cout << "  - ../data/lab2_tabela1.csv (wszystkie wyniki)\n";
-	cout << "  - ../data/lab2_tabela2.csv (średnie dla minimum globalnego)\n\n";
+	cout << "  - ../data/lab2_tabela2.csv (średnie dla minimum globalnego)\n";
+	cout << "  - ../data/rosen_results.csv (x1, x2, y, f_calls dla Rosena)\n\n";
 	
 	// ===== WYKRES KONTUROWY - ŚCIEŻKA OPTYMALIZACJI =====
 	cout << "Generowanie ścieżki optymalizacji dla wykresu konturowego...\n";
