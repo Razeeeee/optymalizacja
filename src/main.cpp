@@ -637,6 +637,167 @@ void lab2()
 	cout << "Zapisano do: data/lab2_wykres.csv\n\n";
 	
 	cout << "=== LAB 2 ZAKOŃCZONE ===\n";
+	
+	// ================================================================
+	// ===== CZĘŚĆ 2: PROBLEM RZECZYWISTY - OPTYMALIZACJA RAMIENIA =====
+	// ================================================================
+	
+	cout << "\n\n=== LAB 2 CZĘŚĆ 2: PROBLEM RZECZYWISTY - RAMIĘ ROBOTA ===\n\n";
+	
+	/*
+	Problem: Optymalizacja współczynników wzmocnienia k1 i k2 regulatora dla ramienia robota
+	Parametry:
+	- m_r = 1 kg (masa ramienia)
+	- m_c = 5 kg (masa ciężarka)
+	- l = 2 m (długość ramienia)
+	- b = 0.25 N·m·s (współczynnik tarcia)
+	- I = (1/3)*m_r*l^2 + m_c*l^2 (moment bezwładności)
+	
+	Równanie ruchu: I * d²α/dt² + b * dα/dt = M(t)
+	Moment siły: M(t) = k1 * (α_ref - α(t)) + k2 * (ω_ref - ω(t))
+	
+	Funkcja celu: Q(k1, k2) = ∫[0,t_end] (10*(α_ref - α(t))² + (ω_ref - ω(t))² + (M(t))²) dt
+	
+	Zakres poszukiwań: k1 ∈ [0, 20] Nm, k2 ∈ [0, 20] Nms
+	Warunki początkowe: α(0) = 0, dα/dt(0) = 0
+	Wartości referencyjne: α_ref = π rad, ω_ref = 0 rad/s
+	t_end = 100s, dt = 0.1s
+	*/
+	
+	// Parametry optymalizacji
+	double epsilon_real = 1e-2;
+	int Nmax_real = 10000;
+	
+	// Długości kroku dla różnych prób
+	double step_sizes_real[3] = { 0.5, 1.0, 2.0 };
+	
+	// Tabela 3: porównanie metod dla problemu rzeczywistego
+	cout << "TABELA 3 - Optymalizacja ramienia robota dla różnych długości kroku\n";
+	cout << "Format: krok, k1_HJ, k2_HJ, Q_HJ, fcalls_HJ, k1_Rosen, k2_Rosen, Q_Rosen, fcalls_Rosen\n\n";
+	
+	ofstream csv_tabela3("data/lab2_tabela3_real.csv");
+	
+	// Punkt startowy dla optymalizacji (środek przedziału)
+	matrix x0_real(2, 1);
+	x0_real(0) = 10.0;		// k1_start = 10 Nm
+	x0_real(1) = 10.0;		// k2_start = 10 Nms
+	
+	cout << "Punkt startowy: k1 = " << x0_real(0) << " Nm, k2 = " << x0_real(1) << " Nms\n\n";
+	
+	// Najlepsze rozwiązanie (do późniejszych symulacji)
+	solution best_hj, best_rosen;
+	bool best_hj_set = false, best_rosen_set = false;
+	
+	for (int s_idx = 0; s_idx < 3; s_idx++)
+	{
+		double step_size_real = step_sizes_real[s_idx];
+		cout << "Optymalizacja dla kroku s = " << step_size_real << "\n";
+		
+		// ===== METODA HOOKE'A-JEEVESA =====
+		solution::clear_calls();
+		solution opt_hj_real = HJ(ff2R, x0_real, step_size_real, 0.5, epsilon_real, Nmax_real);
+		int hj_fcalls_real = solution::f_calls;
+		
+		cout << "  Hooke-Jeeves:\n";
+		cout << "    k1 = " << opt_hj_real.x(0) << " Nm\n";
+		cout << "    k2 = " << opt_hj_real.x(1) << " Nms\n";
+		cout << "    Q = " << opt_hj_real.y(0) << "\n";
+		cout << "    Wywołania funkcji celu: " << hj_fcalls_real << "\n";
+		
+		// ===== METODA ROSENBROCKA =====
+		solution::clear_calls();
+		matrix s0_rosen_real(2, 1);
+		s0_rosen_real(0) = step_size_real;
+		s0_rosen_real(1) = step_size_real;
+		solution opt_rosen_real = Rosen(ff2R, x0_real, s0_rosen_real, 2.0, 0.5, epsilon_real, Nmax_real);
+		int rosen_fcalls_real = solution::f_calls;
+		
+		cout << "  Rosenbrock:\n";
+		cout << "    k1 = " << opt_rosen_real.x(0) << " Nm\n";
+		cout << "    k2 = " << opt_rosen_real.x(1) << " Nms\n";
+		cout << "    Q = " << opt_rosen_real.y(0) << "\n";
+		cout << "    Wywołania funkcji celu: " << rosen_fcalls_real << "\n\n";
+		
+		// Zapisanie do CSV
+		csv_tabela3 << step_size_real << ","
+					<< opt_hj_real.x(0) << "," << opt_hj_real.x(1) << "," << opt_hj_real.y(0) << "," << hj_fcalls_real << ","
+					<< opt_rosen_real.x(0) << "," << opt_rosen_real.x(1) << "," << opt_rosen_real.y(0) << "," << rosen_fcalls_real << "\n";
+		
+		// Zachowanie najlepszego rozwiązania
+		if (!best_hj_set || opt_hj_real.y(0) < best_hj.y(0))
+		{
+			best_hj = opt_hj_real;
+			best_hj_set = true;
+		}
+		if (!best_rosen_set || opt_rosen_real.y(0) < best_rosen.y(0))
+		{
+			best_rosen = opt_rosen_real;
+			best_rosen_set = true;
+		}
+	}
+	
+	csv_tabela3.close();
+	cout << "Wyniki zapisane do: ../data/lab2_tabela3_real.csv\n\n";
+	
+	// ===== SYMULACJE DLA OPTYMALNYCH WARTOŚCI =====
+	cout << "=== SYMULACJE ===\n";
+	
+	// Symulacja dla najlepszego rozwiązania Hooke-Jeeves
+	cout << "Symulacja dla optymalnych k1, k2 (Hooke-Jeeves):\n";
+	cout << "  k1 = " << best_hj.x(0) << " Nm, k2 = " << best_hj.x(1) << " Nms\n";
+	
+	matrix Y0_sim(2, 1);
+	Y0_sim(0) = 0.0;		// alpha(0) = 0
+	Y0_sim(1) = 0.0;		// omega(0) = 0
+	
+	matrix MT_hj_sim(2, 1);
+	MT_hj_sim(0) = best_hj.x(0);
+	MT_hj_sim(1) = best_hj.x(1);
+	
+	matrix* Y_hj_sim = solve_ode(df2, 0, 0.1, 100, Y0_sim, NAN, MT_hj_sim);
+	
+	// Symulacja dla najlepszego rozwiązania Rosenbrock
+	cout << "Symulacja dla optymalnych k1, k2 (Rosenbrock):\n";
+	cout << "  k1 = " << best_rosen.x(0) << " Nm, k2 = " << best_rosen.x(1) << " Nms\n";
+	
+	matrix MT_rosen_sim(2, 1);
+	MT_rosen_sim(0) = best_rosen.x(0);
+	MT_rosen_sim(1) = best_rosen.x(1);
+	
+	matrix* Y_rosen_sim = solve_ode(df2, 0, 0.1, 100, Y0_sim, NAN, MT_rosen_sim);
+	
+	// Symulacja dla k1 = 5 Nm, k2 = 5 Nms (do porównania)
+	cout << "Symulacja dla k1 = 5 Nm, k2 = 5 Nms (porównanie):\n";
+	
+	matrix MT_compare(2, 1);
+	MT_compare(0) = 5.0;
+	MT_compare(1) = 5.0;
+	
+	matrix* Y_compare = solve_ode(df2, 0, 0.1, 100, Y0_sim, NAN, MT_compare);
+	
+	// Zapisanie wyników symulacji do CSV
+	ofstream csv_sim("../data/lab2_symulacja_real.csv");
+	csv_sim << "t,alpha_HJ,omega_HJ,alpha_Rosen,omega_Rosen,alpha_compare,omega_compare\n";
+	
+	int n_sim_real = get_len(Y_hj_sim[0]);
+	for (int i = 0; i < n_sim_real; ++i)
+	{
+		csv_sim << Y_hj_sim[0](i) << ","
+				<< Y_hj_sim[1](i, 0) << "," << Y_hj_sim[1](i, 1) << ","
+				<< Y_rosen_sim[1](i, 0) << "," << Y_rosen_sim[1](i, 1) << ","
+				<< Y_compare[1](i, 0) << "," << Y_compare[1](i, 1) << "\n";
+	}
+	
+	csv_sim.close();
+	cout << "\nWyniki symulacji zapisane do: ../data/lab2_symulacja_real.csv\n";
+	cout << "Kolumny: t, alpha_HJ, omega_HJ, alpha_Rosen, omega_Rosen, alpha_compare, omega_compare\n";
+	
+	// Zwolnienie pamięci
+	Y_hj_sim[0].~matrix(); Y_hj_sim[1].~matrix();
+	Y_rosen_sim[0].~matrix(); Y_rosen_sim[1].~matrix();
+	Y_compare[0].~matrix(); Y_compare[1].~matrix();
+	
+	cout << "\n=== LAB 2 CZĘŚĆ 2 ZAKOŃCZONA ===\n";
 }
 
 

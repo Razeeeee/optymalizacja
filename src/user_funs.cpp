@@ -87,3 +87,99 @@ matrix ff2T(matrix x, matrix ud1, matrix ud2)				// funkcja celu dla przypadku t
 	y = pow(x(0), 2) + pow(x(1), 2) - cos(2.5 * M_PI * x(0)) - cos(2.5 * M_PI * x(1)) + 2.0;
 	return y;
 }
+
+matrix ff2R(matrix x, matrix ud1, matrix ud2)				// funkcja celu dla problemu rzeczywistego Lab 2 - ramię robota
+{
+	matrix y;
+	// x(0) = k1, x(1) = k2 - współczynniki wzmocnienia regulatora
+	// Warunki początkowe: alpha(0) = 0, dalpha(0) = 0
+	matrix Y0 = matrix(2, 1);
+	Y0(0) = 0.0;		// alpha(0) = 0 rad
+	Y0(1) = 0.0;		// dalpha/dt(0) = 0 rad/s
+	
+	// Parametry: k1, k2, alpha_ref = pi rad, omega_ref = 0 rad/s
+	matrix MT = matrix(2, 1);
+	MT(0) = x(0);		// k1
+	MT(1) = x(1);		// k2
+	
+	// Symulacja dla czasu t_end = 100s z krokiem dt = 0.1s
+	matrix* Y = solve_ode(df2, 0, 0.1, 100, Y0, ud1, MT);
+	
+	int n = get_len(Y[0]);
+	
+	// Obliczenie funkcji celu: całka z (10*(alpha_ref - alpha(t))^2 + (omega_ref - omega(t))^2 + (M(t))^2) dt
+	double integral = 0.0;
+	double alpha_ref = M_PI;
+	double omega_ref = 0.0;
+	
+	for (int i = 0; i < n - 1; ++i)
+	{
+		double t = Y[0](i);
+		double alpha = Y[1](i, 0);
+		double omega = Y[1](i, 1);
+		
+		// Obliczenie momentu siły M(t) dla aktualnego stanu
+		double alpha_error = alpha_ref - alpha;
+		double omega_error = omega_ref - omega;
+		double M = x(0) * alpha_error + x(1) * omega_error;
+		
+		// Wartość podcałkowa
+		double integrand = 10.0 * pow(alpha_error, 2) + pow(omega_error, 2) + pow(M, 2);
+		
+		// Całkowanie metodą trapezów
+		double dt = Y[0](i + 1) - Y[0](i);
+		
+		double t_next = Y[0](i + 1);
+		double alpha_next = Y[1](i + 1, 0);
+		double omega_next = Y[1](i + 1, 1);
+		double alpha_error_next = alpha_ref - alpha_next;
+		double omega_error_next = omega_ref - omega_next;
+		double M_next = x(0) * alpha_error_next + x(1) * omega_error_next;
+		double integrand_next = 10.0 * pow(alpha_error_next, 2) + pow(omega_error_next, 2) + pow(M_next, 2);
+		
+		integral += 0.5 * (integrand + integrand_next) * dt;
+	}
+	
+	y = integral;
+	
+	Y[0].~matrix();
+	Y[1].~matrix();
+	
+	return y;
+}
+
+matrix df2(double t, matrix Y, matrix ud1, matrix ud2)		// równania różniczkowe dla ramienia robota Lab 2
+{
+	matrix dY(2, 1);
+	
+	// Parametry ramienia
+	double m_c = 5.0;		// kg - masa ciężarka na platformie
+	double m_r = 1.0;		// kg - masa ramienia
+	double l = 2.0;			// m - długość ramienia
+	double b = 0.25;		// N·m·s - współczynnik tarcia
+	
+	// Moment bezwładności: I = (1/3)*m_r*l^2 + m_c*l^2
+	double I = (1.0 / 3.0) * m_r * pow(l, 2) + m_c * pow(l, 2);
+	
+	// Aktualny stan
+	double alpha = Y(0);	// [rad]
+	double omega = Y(1);	// [rad/s]
+	
+	// Wartości referencyjne
+	double alpha_ref = M_PI;	// rad
+	double omega_ref = 0.0;		// rad/s
+	
+	// Współczynniki regulatora z ud2
+	double k1 = ud2(0);
+	double k2 = ud2(1);
+	
+	// Moment siły sterujący
+	double M = k1 * (alpha_ref - alpha) + k2 * (omega_ref - omega);
+	
+	// Równania ruchu
+	dY(0) = omega;											// dalpha/dt = omega
+	dY(1) = (M - b * omega) / I;							// domega/dt = (M - b*omega) / I
+	
+	return dY;
+}
+
