@@ -112,9 +112,9 @@ matrix ff2R(matrix x, matrix ud1, matrix ud2)				// funkcja celu dla problemu rz
 	double alpha_ref = M_PI;
 	double omega_ref = 0.0;
 	
+	// Całkowanie metodą prostokątów (lewy punkt)
 	for (int i = 0; i < n - 1; ++i)
 	{
-		double t = Y[0](i);
 		double alpha = Y[1](i, 0);
 		double omega = Y[1](i, 1);
 		
@@ -126,18 +126,11 @@ matrix ff2R(matrix x, matrix ud1, matrix ud2)				// funkcja celu dla problemu rz
 		// Wartość podcałkowa
 		double integrand = 10.0 * pow(alpha_error, 2) + pow(omega_error, 2) + pow(M, 2);
 		
-		// Całkowanie metodą trapezów
+		// Krok czasowy
 		double dt = Y[0](i + 1) - Y[0](i);
 		
-		double t_next = Y[0](i + 1);
-		double alpha_next = Y[1](i + 1, 0);
-		double omega_next = Y[1](i + 1, 1);
-		double alpha_error_next = alpha_ref - alpha_next;
-		double omega_error_next = omega_ref - omega_next;
-		double M_next = x(0) * alpha_error_next + x(1) * omega_error_next;
-		double integrand_next = 10.0 * pow(alpha_error_next, 2) + pow(omega_error_next, 2) + pow(M_next, 2);
-		
-		integral += 0.5 * (integrand + integrand_next) * dt;
+		// Metoda prostokątów (lewy punkt)
+		integral += integrand * dt;
 	}
 	
 	y = integral;

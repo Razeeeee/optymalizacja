@@ -668,6 +668,36 @@ void lab2()
 	double epsilon_real = 1e-2;
 	int Nmax_real = 10000;
 	
+	// WERYFIKACJA POPRAWNOŚCI IMPLEMENTACJI
+	cout << "=== WERYFIKACJA POPRAWNOŚCI IMPLEMENTACJI ===\n";
+	cout << "Obliczanie wartości funkcji celu dla k1 = 5 Nm, k2 = 5 Nms\n";
+	
+	matrix k_test(2, 1);
+	k_test(0) = 5.0;		// k1 = 5 Nm
+	k_test(1) = 5.0;		// k2 = 5 Nms
+	
+	solution::clear_calls();
+	solution sol_test(k_test);
+	sol_test.fit_fun(ff2R);
+	double Q_test = sol_test.y(0);
+	
+	cout << "Wartość funkcji celu Q(5, 5) = " << Q_test << "\n";
+	cout << "Oczekiwana wartość: Q(5, 5) ≈ 775.229\n";
+	
+	if (abs(Q_test - 775.229) < 1.0)
+	{
+		cout << "✓ POPRAWNA IMPLEMENTACJA - różnica: " << abs(Q_test - 775.229) << "\n";
+	}
+	else
+	{
+		cout << "✗ UWAGA - różnica: " << abs(Q_test - 775.229) << " (może wymagać weryfikacji)\n";
+	}
+	
+	cout << "Wywołań funkcji celu: " << solution::f_calls << "\n";
+	cout << "==========================================\n\n";
+	
+	solution::clear_calls();
+	
 	// Długości kroku dla różnych prób
 	double step_sizes_real[3] = { 0.5, 1.0, 2.0 };
 	
@@ -675,7 +705,7 @@ void lab2()
 	cout << "TABELA 3 - Optymalizacja ramienia robota dla różnych długości kroku\n";
 	cout << "Format: krok, k1_HJ, k2_HJ, Q_HJ, fcalls_HJ, k1_Rosen, k2_Rosen, Q_Rosen, fcalls_Rosen\n\n";
 	
-	ofstream csv_tabela3("data/lab2_tabela3_real.csv");
+	ofstream csv_tabela3("../data/lab2_tabela3_real.csv");
 	
 	// Punkt startowy dla optymalizacji (środek przedziału)
 	matrix x0_real(2, 1);
@@ -766,36 +796,24 @@ void lab2()
 	
 	matrix* Y_rosen_sim = solve_ode(df2, 0, 0.1, 100, Y0_sim, NAN, MT_rosen_sim);
 	
-	// Symulacja dla k1 = 5 Nm, k2 = 5 Nms (do porównania)
-	cout << "Symulacja dla k1 = 5 Nm, k2 = 5 Nms (porównanie):\n";
-	
-	matrix MT_compare(2, 1);
-	MT_compare(0) = 5.0;
-	MT_compare(1) = 5.0;
-	
-	matrix* Y_compare = solve_ode(df2, 0, 0.1, 100, Y0_sim, NAN, MT_compare);
-	
-	// Zapisanie wyników symulacji do CSV
+	// Zapisanie wyników symulacji do CSV (tylko 5 kolumn: t, alpha_HJ, omega_HJ, alpha_Rosen, omega_Rosen)
 	ofstream csv_sim("../data/lab2_symulacja_real.csv");
-	csv_sim << "t,alpha_HJ,omega_HJ,alpha_Rosen,omega_Rosen,alpha_compare,omega_compare\n";
 	
 	int n_sim_real = get_len(Y_hj_sim[0]);
 	for (int i = 0; i < n_sim_real; ++i)
 	{
 		csv_sim << Y_hj_sim[0](i) << ","
 				<< Y_hj_sim[1](i, 0) << "," << Y_hj_sim[1](i, 1) << ","
-				<< Y_rosen_sim[1](i, 0) << "," << Y_rosen_sim[1](i, 1) << ","
-				<< Y_compare[1](i, 0) << "," << Y_compare[1](i, 1) << "\n";
+				<< Y_rosen_sim[1](i, 0) << "," << Y_rosen_sim[1](i, 1) << "\n";
 	}
 	
 	csv_sim.close();
 	cout << "\nWyniki symulacji zapisane do: ../data/lab2_symulacja_real.csv\n";
-	cout << "Kolumny: t, alpha_HJ, omega_HJ, alpha_Rosen, omega_Rosen, alpha_compare, omega_compare\n";
+	cout << "Kolumny: t, alpha_HJ, omega_HJ, alpha_Rosen, omega_Rosen\n";
 	
 	// Zwolnienie pamięci
 	Y_hj_sim[0].~matrix(); Y_hj_sim[1].~matrix();
 	Y_rosen_sim[0].~matrix(); Y_rosen_sim[1].~matrix();
-	Y_compare[0].~matrix(); Y_compare[1].~matrix();
 	
 	cout << "\n=== LAB 2 CZĘŚĆ 2 ZAKOŃCZONA ===\n";
 }
