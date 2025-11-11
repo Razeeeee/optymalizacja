@@ -1,4 +1,6 @@
 #include "opt_alg.h"
+#include <algorithm>
+#include <vector>
 
 solution MC(matrix (*ff)(matrix, matrix, matrix), int N, matrix lb, matrix ub, double epsilon, int Nmax, matrix ud1, matrix ud2)
 {
@@ -537,8 +539,102 @@ solution pen(matrix (*ff)(matrix, matrix, matrix), matrix x0, double c, double d
 	try
 	{
 		solution Xopt;
-		// Tu wpisz kod funkcji
-
+		
+		// 1. i = 0
+		int i = 0;
+		
+		// 2. c(0) = c
+		double c_current = c;
+		
+		// 3. x* = x(0)
+		Xopt.x = x0;
+		
+		// Parametry dla metody Nelder-Mead
+		double s = 0.5;			// długość krawędzi początkowego simpleksu
+		double alpha = 1.0;		// współczynnik odbicia
+		double beta = 0.5;		// współczynnik kontrakcji
+		double gamma = 2.0;		// współczynnik ekspansji
+		double delta = 0.5;		// współczynnik redukcji
+		
+		// Typ funkcji kary: 0 = zewnętrzna, 1 = wewnętrzna
+		int penalty_type = (int)ud2(0);
+		
+		solution X_prev;
+		
+		// 4. repeat
+		while (true)
+		{
+			// 5. ud2_pen = [ud2, c(i)]
+			matrix ud2_pen(2, 1);
+			ud2_pen(0) = ud2(0);	// typ funkcji kary
+			ud2_pen(1) = c_current;	// aktualna wartość współczynnika kary
+			
+			// 6. x(i+1) = sym_NM(ff_pen, x*, s, alpha, beta, gamma, delta, epsilon, Nmax, ud1, ud2_pen)
+			solution X_current = sym_NM(ff, Xopt.x, s, alpha, beta, gamma, delta, epsilon, Nmax, ud1, ud2_pen);
+			
+			// 7. if ||x(i+1) - x*|| < epsilon then
+			matrix diff = X_current.x - Xopt.x;
+			double norm_diff = 0.0;
+			for (int j = 0; j < get_len(diff); ++j)
+				norm_diff += pow(diff(j), 2);
+			norm_diff = sqrt(norm_diff);
+			
+			if (norm_diff < epsilon)
+			{
+				// 8. return x*
+				Xopt = X_current;
+				Xopt.flag = 1;
+				return Xopt;
+			}
+			// 9. end if
+			
+			// 10. x* = x(i+1)
+			Xopt = X_current;
+			
+			// 11. if fcalls > Nmax then
+			if (solution::f_calls > Nmax)
+			{
+				// 12. return error
+				Xopt.flag = 0;
+				return Xopt;
+			}
+			// 13. end if
+			
+			// 14. c(i+1) = dc * c(i)
+			if (penalty_type == 0)
+			{
+				// Zewnętrzna funkcja kary: zwiększamy c
+				c_current = dc * c_current;
+			}
+			else
+			{
+				// Wewnętrzna funkcja kary: zmniejszamy c
+				c_current = dc * c_current;
+			}
+			
+			// 15. i = i + 1
+			i++;
+			
+			// 16. until (warunek zakończenia)
+			// Zakończenie po pewnej liczbie iteracji lub gdy c jest odpowiednio duże/małe
+			if (penalty_type == 0 && c_current > 1e10)
+			{
+				Xopt.flag = 1;
+				return Xopt;
+			}
+			else if (penalty_type == 1 && c_current < 1e-10)
+			{
+				Xopt.flag = 1;
+				return Xopt;
+			}
+			
+			if (i > 100)	// maksymalna liczba iteracji zewnętrznej pętli
+			{
+				Xopt.flag = 1;
+				return Xopt;
+			}
+		}
+		
 		return Xopt;
 	}
 	catch (string ex_info)
@@ -552,8 +648,144 @@ solution sym_NM(matrix (*ff)(matrix, matrix, matrix), matrix x0, double s, doubl
 	try
 	{
 		solution Xopt;
-		// Tu wpisz kod funkcji
-
+		
+		// 1. n = dim(x(0))
+		int n = get_len(x0);
+		
+		// 2. Tworzenie początkowego simpleksu
+		// Simpleks będzie miał n+1 wierzchołków
+		vector<solution> simplex(n + 1);
+		
+		// Pierwszy wierzchołek to x0
+		simplex[0].x = x0;
+		simplex[0].fit_fun(ff, ud1, ud2);
+		
+		// Pozostałe wierzchołki tworzymy przez przesunięcie wzdłuż osi współrzędnych
+		for (int i = 1; i <= n; ++i)
+		{
+			simplex[i].x = x0;
+			simplex[i].x(i - 1) = simplex[i].x(i - 1) + s;
+			simplex[i].fit_fun(ff, ud1, ud2);
+		}
+		
+		// 3. repeat
+		while (true)
+		{
+			// 4. Sortowanie wierzchołków według wartości funkcji celu (rosnąco)
+			sort(simplex.begin(), simplex.end(), [](const solution& a, const solution& b) {
+				return a.y(0) < b.y(0);
+			});
+			
+			// Najlepszy: simplex[0]
+			// Drugi najgorszy: simplex[n-1]
+			// Najgorszy: simplex[n]
+			
+			// 5. Obliczenie centroidu (bez najgorszego punktu)
+			matrix centroid(n, 1);
+			for (int i = 0; i < n; ++i)
+			{
+				for (int j = 0; j < n; ++j)
+				{
+					centroid(j) = centroid(j) + simplex[i].x(j);
+				}
+			}
+			for (int j = 0; j < n; ++j)
+			{
+				centroid(j) = centroid(j) / n;
+			}
+			
+			// 6. Odbicie (reflection)
+			matrix x_reflected = centroid + alpha * (centroid - simplex[n].x);
+			solution X_reflected(x_reflected);
+			X_reflected.fit_fun(ff, ud1, ud2);
+			
+			// 7. if f(x_best) <= f(x_reflected) < f(x_second_worst) then
+			if (simplex[0].y(0) <= X_reflected.y(0) && X_reflected.y(0) < simplex[n - 1].y(0))
+			{
+				// 8. Zastąp najgorszy punkt punktem odbitym
+				simplex[n] = X_reflected;
+			}
+			// 9. else if f(x_reflected) < f(x_best) then
+			else if (X_reflected.y(0) < simplex[0].y(0))
+			{
+				// 10. Ekspansja (expansion)
+				matrix x_expanded = centroid + gamma * (x_reflected - centroid);
+				solution X_expanded(x_expanded);
+				X_expanded.fit_fun(ff, ud1, ud2);
+				
+				// 11. if f(x_expanded) < f(x_reflected) then
+				if (X_expanded.y(0) < X_reflected.y(0))
+				{
+					// 12. Zastąp najgorszy punkt punktem rozszerzonym
+					simplex[n] = X_expanded;
+				}
+				else
+				{
+					// 13. Zastąp najgorszy punkt punktem odbitym
+					simplex[n] = X_reflected;
+				}
+				// 14. end if
+			}
+			// 15. else
+			else
+			{
+				// 16. Kontrakcja (contraction)
+				matrix x_contracted = centroid + beta * (simplex[n].x - centroid);
+				solution X_contracted(x_contracted);
+				X_contracted.fit_fun(ff, ud1, ud2);
+				
+				// 17. if f(x_contracted) < f(x_worst) then
+				if (X_contracted.y(0) < simplex[n].y(0))
+				{
+					// 18. Zastąp najgorszy punkt punktem skurczonym
+					simplex[n] = X_contracted;
+				}
+				// 19. else
+				else
+				{
+					// 20. Redukcja (shrink) - kurczenie całego simpleksu w kierunku najlepszego punktu
+					for (int i = 1; i <= n; ++i)
+					{
+						simplex[i].x = simplex[0].x + delta * (simplex[i].x - simplex[0].x);
+						simplex[i].fit_fun(ff, ud1, ud2);
+					}
+				}
+				// 21. end if
+			}
+			// 22. end if
+			
+			// 23. Sprawdzenie warunku zakończenia
+			if (solution::f_calls > Nmax)
+			{
+				Xopt = simplex[0];
+				Xopt.flag = 0;
+				return Xopt;
+			}
+			
+			// Obliczenie odchylenia standardowego wartości funkcji w simpleksie
+			double mean_y = 0.0;
+			for (int i = 0; i <= n; ++i)
+			{
+				mean_y += simplex[i].y(0);
+			}
+			mean_y /= (n + 1);
+			
+			double std_dev = 0.0;
+			for (int i = 0; i <= n; ++i)
+			{
+				std_dev += pow(simplex[i].y(0) - mean_y, 2);
+			}
+			std_dev = sqrt(std_dev / (n + 1));
+			
+			// 24. until std_dev < epsilon
+			if (std_dev < epsilon)
+			{
+				Xopt = simplex[0];
+				Xopt.flag = 1;
+				return Xopt;
+			}
+		}
+		
 		return Xopt;
 	}
 	catch (string ex_info)

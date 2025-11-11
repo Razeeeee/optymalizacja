@@ -26,7 +26,7 @@ int main()
 {
 	try
 	{
-		lab2();
+		lab3();
 	}
 	catch (string EX_INFO)
 	{
@@ -821,10 +821,156 @@ void lab2()
 
 void lab3()
 {
-
-}
-
-void lab4()
+	// Link do Excela:
+	// https://docs.google.com/spreadsheets/d/1vXfR9t_j6LvPTwkt_JZoQdYq9V--8BDT/edit?usp=sharing&ouid=117458587915467310851&rtpof=true&sd=true
+	
+	/*
+	Funkcja testowa Lab 3:
+	f(x1, x2) = sin(pi*sqrt((x1/pi)^2 + (x2/pi)^2)) / (pi*sqrt((x1/pi)^2 + (x2/pi)^2))
+	
+	Ograniczenia:
+	g1(x1) = -x1 + 1 <= 0
+	g2(x2) = -x2 + 1 <= 0
+	g3(x1, x2) = sqrt(x1^2 + x2^2) - a <= 0
+	
+	Wartości parametru a: 4, 4.4934, 5
+	
+	Zadanie:
+	- 100 optymalizacji dla każdej wartości a
+	- Punkt startowy losowany w obszarze dopuszczalnym
+	- Epsilon = 1e-3
+	- Metoda: Nelder-Mead (simpleks)
+	- Uwzględnienie ograniczeń: zewnętrzna i wewnętrzna funkcja kary
+	*/
+	
+	cout << "=== LAB 3: Optymalizacja z ograniczeniami ===\n\n";
+	
+	// Parametry optymalizacji
+	double epsilon = 1e-3;
+	int Nmax = 10000;
+	
+	// Wartości parametru a
+	double a_values[3] = { 4.0, 4.4934, 5.0 };
+	
+	// Plik CSV dla wyników (Tabela 1)
+	ofstream csv_tabela1("data/lab3_tabela1.csv");
+	
+	// Nagłówek (opcjonalnie, ale ułatwia analizę)
+	// csv_tabela1 << "x1_0,x2_0,x1_ext,x2_ext,r_ext,y_ext,fcalls_ext,x1_int,x2_int,r_int,y_int,fcalls_int\n";
+	
+	cout << "TABELA 1 - Struktura kolumn (12 kolumn, 300 wierszy):\n";
+	cout << "  Kol 1-2:   x1(0), x2(0) - punkt startowy\n";
+	cout << "  Kol 3-7:   Zewnętrzna funkcja kary -> x1*, x2*, r*, y*, fcalls\n";
+	cout << "  Kol 8-12:  Wewnętrzna funkcja kary -> x1*, x2*, r*, y*, fcalls\n";
+	cout << "  Wiersze 1-100:   a = 4.0\n";
+	cout << "  Wiersze 101-200: a = 4.4934\n";
+	cout << "  Wiersze 201-300: a = 5.0\n\n";
+	
+	srand(time(nullptr));
+	
+	// Dla każdej wartości parametru a
+	for (int a_idx = 0; a_idx < 3; a_idx++)
+	{
+		double a = a_values[a_idx];
+		cout << "Optymalizacja dla a = " << a << "\n";
+		
+		// 100 optymalizacji dla każdej wartości a
+		for (int run = 0; run < 100; run++)
+		{
+			// Losowanie punktu startowego w obszarze dopuszczalnym
+			// Ograniczenia: x1 >= 1, x2 >= 1, sqrt(x1^2 + x2^2) <= a
+			// Losujemy punkt w pierścieniu: max(sqrt(2), 1.1) <= r <= a - 0.1
+			
+			double r_min = max(sqrt(2.0), 1.1);	// minimalna odległość od początku
+			double r_max = a - 0.1;				// maksymalna odległość (z marginesem)
+			
+			if (r_min >= r_max)
+			{
+				// Jeśli przedział jest pusty lub zbyt wąski, użyjmy wartości domyślnej
+				r_min = 1.5;
+				r_max = a - 0.1;
+			}
+			
+			double r_start = r_min + (r_max - r_min) * (rand() / (double)RAND_MAX);
+			double theta_start = M_PI / 4.0 + (M_PI / 4.0) * (rand() / (double)RAND_MAX);	// kąt w przedziale [45°, 90°]
+			
+			matrix x0(2, 1);
+			x0(0) = r_start * cos(theta_start);
+			x0(1) = r_start * sin(theta_start);
+			
+			// Zapewnienie że x1 >= 1 i x2 >= 1
+			if (x0(0) < 1.0) x0(0) = 1.0 + 0.1 * (rand() / (double)RAND_MAX);
+			if (x0(1) < 1.0) x0(1) = 1.0 + 0.1 * (rand() / (double)RAND_MAX);
+			
+			// ===== ZEWNĘTRZNA FUNKCJA KARY =====
+			solution::clear_calls();
+			
+			// Parametry funkcji kary zewnętrznej
+			double c_ext = 1.0;			// początkowa wartość współczynnika kary
+			double dc_ext = 2.0;		// współczynnik zwiększania kary
+			
+			matrix ud1_ext(1, 1);
+			ud1_ext(0) = a;				// przekazujemy parametr a
+			
+			matrix ud2_ext(1, 1);
+			ud2_ext(0) = 0;				// 0 = zewnętrzna funkcja kary
+			
+			solution opt_ext = pen(ff3T, x0, c_ext, dc_ext, epsilon, Nmax, ud1_ext, ud2_ext);
+			int fcalls_ext = solution::f_calls;
+			
+			// Obliczenie odległości od początku układu współrzędnych
+			double r_ext = sqrt(pow(opt_ext.x(0), 2) + pow(opt_ext.x(1), 2));
+			
+			// Obliczenie prawdziwej wartości funkcji celu (bez kary)
+			matrix ud2_true(2, 1);
+			ud2_true(0) = 0;
+			ud2_true(1) = 0;	// c = 0, więc nie ma kary
+			solution opt_ext_true(opt_ext.x);
+			opt_ext_true.fit_fun(ff3T, ud1_ext, ud2_true);
+			
+			// ===== WEWNĘTRZNA FUNKCJA KARY =====
+			solution::clear_calls();
+			
+			// Parametry funkcji kary wewnętrznej
+			double c_int = 10.0;		// początkowa wartość współczynnika kary
+			double dc_int = 0.5;		// współczynnik zmniejszania kary
+			
+			matrix ud1_int(1, 1);
+			ud1_int(0) = a;				// przekazujemy parametr a
+			
+			matrix ud2_int(1, 1);
+			ud2_int(0) = 1;				// 1 = wewnętrzna funkcja kary
+			
+			solution opt_int = pen(ff3T, x0, c_int, dc_int, epsilon, Nmax, ud1_int, ud2_int);
+			int fcalls_int = solution::f_calls;
+			
+			// Obliczenie odległości od początku układu współrzędnych
+			double r_int = sqrt(pow(opt_int.x(0), 2) + pow(opt_int.x(1), 2));
+			
+			// Obliczenie prawdziwej wartości funkcji celu (bez kary)
+			solution opt_int_true(opt_int.x);
+			opt_int_true.fit_fun(ff3T, ud1_int, ud2_true);
+			
+			// Zapisanie do CSV
+			csv_tabela1 << x0(0) << "," << x0(1) << ","
+						<< opt_ext.x(0) << "," << opt_ext.x(1) << "," << r_ext << "," << opt_ext_true.y(0) << "," << fcalls_ext << ","
+						<< opt_int.x(0) << "," << opt_int.x(1) << "," << r_int << "," << opt_int_true.y(0) << "," << fcalls_int << "\n";
+			
+			// Postęp co 25 iteracji
+			if ((run + 1) % 25 == 0)
+			{
+				cout << "  Ukończono " << (run + 1) << "/100 optymalizacji\n";
+			}
+		}
+		
+		cout << "  Zakończono optymalizacje dla a = " << a << "\n\n";
+	}
+	
+	csv_tabela1.close();
+	
+	cout << "Wyniki zapisane do: ../data/lab3_tabela1.csv\n";
+	cout << "\n=== LAB 3 ZAKOŃCZONE ===\n";
+}void lab4()
 {
 
 }

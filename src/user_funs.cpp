@@ -176,3 +176,75 @@ matrix df2(double t, matrix Y, matrix ud1, matrix ud2)		// równania różniczko
 	return dY;
 }
 
+matrix ff3T(matrix x, matrix ud1, matrix ud2)				// funkcja celu dla przypadku testowego Lab 3
+{
+	matrix y;
+	
+	// Parametr a z ud1
+	double a = ud1(0);
+	
+	// Typ funkcji kary z ud2(0): 0 = zewnętrzna, 1 = wewnętrzna
+	// Współczynnik kary c z ud2(1)
+	int penalty_type = (int)ud2(0);
+	double c = (get_len(ud2) > 1) ? ud2(1) : 1.0;
+	
+	double x1 = x(0);
+	double x2 = x(1);
+	
+	// Funkcja celu: f(x1, x2) = sin(pi*sqrt((x1/pi)^2 + (x2/pi)^2)) / (pi*sqrt((x1/pi)^2 + (x2/pi)^2))
+	double r_arg = sqrt(pow(x1 / M_PI, 2) + pow(x2 / M_PI, 2));
+	double f = 0.0;
+	
+	if (r_arg < 1e-10)
+	{
+		// Wartość graniczna dla r → 0: lim_{r→0} sin(pi*r)/(pi*r) = 1
+		f = 1.0;
+	}
+	else
+	{
+		f = sin(M_PI * r_arg) / (M_PI * r_arg);
+	}
+	
+	// Ograniczenia:
+	// g1(x1) = -x1 + 1 <= 0  =>  x1 >= 1
+	// g2(x2) = -x2 + 1 <= 0  =>  x2 >= 1
+	// g3(x1, x2) = sqrt(x1^2 + x2^2) - a <= 0  =>  sqrt(x1^2 + x2^2) <= a
+	
+	double g1 = -x1 + 1.0;
+	double g2 = -x2 + 1.0;
+	double g3 = sqrt(pow(x1, 2) + pow(x2, 2)) - a;
+	
+	// Funkcja kary
+	double S = 0.0;
+	
+	if (penalty_type == 0)
+	{
+		// Zewnętrzna funkcja kary: S(x) = c * suma((max(0, g_i))^2)
+		S = c * (pow(max(0.0, g1), 2) + pow(max(0.0, g2), 2) + pow(max(0.0, g3), 2));
+	}
+	else
+	{
+		// Wewnętrzna funkcja kary: S(x) = c * (-suma(1/g_i)) dla g_i < 0
+		// Dodajemy małą wartość aby uniknąć dzielenia przez zero
+		double epsilon_barrier = 1e-10;
+		
+		if (g1 < -epsilon_barrier)
+			S += c * (-1.0 / g1);
+		else
+			S += 1e10;	// duża kara jeśli jesteśmy blisko lub poza granicą
+			
+		if (g2 < -epsilon_barrier)
+			S += c * (-1.0 / g2);
+		else
+			S += 1e10;
+			
+		if (g3 < -epsilon_barrier)
+			S += c * (-1.0 / g3);
+		else
+			S += 1e10;
+	}
+	
+	y = f + S;
+	
+	return y;
+}
