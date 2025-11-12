@@ -846,7 +846,7 @@ void lab3()
 	cout << "=== LAB 3: Optymalizacja z ograniczeniami ===\n\n";
 	
 	// Parametry optymalizacji
-	double epsilon = 1e-3;
+	double epsilon = 1e-4;		// zmniejszono dla lepszej precyzji
 	int Nmax = 10000;
 	
 	// Wartości parametru a
@@ -931,51 +931,24 @@ void lab3()
 			// ===== WEWNĘTRZNA FUNKCJA KARY =====
 			solution::clear_calls();
 			
-			// Parametry funkcji kary wewnętrznej
-			double c_int = 10.0;		// początkowa wartość współczynnika kary
-			double dc_int = 0.5;		// współczynnik zmniejszania kary
+			// PARAMETRY DLA WEWNĘTRZNEJ FUNKCJI KARY (BARIERA LOGARYTMICZNA):
+			// - Zaczynamy od MAŁEJ wartości c (słaba bariera)
+			// - Zmniejszamy c poprzez mnożenie przez dc < 1
+			// - Im mniejsze c, tym słabsza bariera, punkt może być bliżej granicy
+			// - Optymalne rozwiązanie uzyskujemy gdy c → 0
+			
+			double c_int = 1.0;			// początkowa wartość (większa niż dla zewnętrznej)
+			double dc_int = 0.5;		// współczynnik ZMNIEJSZANIA (0 < dc < 1) - wolniejsze zmniejszanie = mniej iteracji
 			
 			matrix ud1_int(1, 1);
-			ud1_int(0) = a;				// przekazujemy parametr a
+			ud1_int(0) = a;				// parametr a (promień ograniczenia)
 			
 			matrix ud2_int(1, 1);
-			ud2_int(0) = 1;				// 1 = wewnętrzna funkcja kary
+			ud2_int(0) = 1;				// 1 = wewnętrzna funkcja kary (bariera logarytmiczna)
 			
-			// WAŻNE: Punkt startowy dla wewnętrznej funkcji kary musi być BEZPIECZNIE wewnątrz obszaru
-			// Ograniczenia: x1 >= 1, x2 >= 1, sqrt(x1^2 + x2^2) <= a
-			// Wybieramy punkt dalej od granic, aby zapewnić g_i < 0 dla wszystkich ograniczeń
-			matrix x0_int(2, 1);
-			double safety_margin = 0.3;  // margines bezpieczeństwa
-			
-			// Losujemy punkt w bezpiecznej odległości od granic
-			double r_min_safe = sqrt(2.0) + safety_margin;  // dalej od naroża (1,1)
-			double r_max_safe = a - safety_margin;          // dalej od okręgu r=a
-			
-			if (r_min_safe >= r_max_safe) {
-				r_min_safe = (sqrt(2.0) + a) / 2.0;  // punkt w środku dostępnego zakresu
-				r_max_safe = r_min_safe;
-			}
-			
-			double r_start_int = r_min_safe + (r_max_safe - r_min_safe) * (rand() / (double)RAND_MAX);
-			double theta_start_int = M_PI / 4.0 + (M_PI / 6.0) * (rand() / (double)RAND_MAX);  // kąt 45°-60°
-			
-			x0_int(0) = r_start_int * cos(theta_start_int);
-			x0_int(1) = r_start_int * sin(theta_start_int);
-			
-			// Upewniamy się, że jesteśmy bezpiecznie wewnątrz
-			if (x0_int(0) < 1.0 + safety_margin) x0_int(0) = 1.0 + safety_margin;
-			if (x0_int(1) < 1.0 + safety_margin) x0_int(1) = 1.0 + safety_margin;
-			
-			// Sprawdzenie czy punkt jest w obszarze dopuszczalnym
-			double r_check = sqrt(pow(x0_int(0), 2) + pow(x0_int(1), 2));
-			if (r_check >= a - safety_margin) {
-				// Jeśli punkt jest za blisko granicy okręgu, przesuń go bliżej środka
-				double scale = (a - safety_margin) / r_check * 0.95;
-				x0_int(0) *= scale;
-				x0_int(1) *= scale;
-			}
-			
-			solution opt_int = pen(ff3T, x0_int, c_int, dc_int, epsilon, Nmax, ud1_int, ud2_int);
+			// Wywołanie optymalizacji z wewnętrzną funkcją kary
+			// Używamy tego samego punktu startowego co dla zewnętrznej funkcji kary
+			solution opt_int = pen(ff3T, x0, c_int, dc_int, epsilon, Nmax, ud1_int, ud2_int);
 			int fcalls_int = solution::f_calls;
 			
 			// Obliczenie odległości od początku układu współrzędnych

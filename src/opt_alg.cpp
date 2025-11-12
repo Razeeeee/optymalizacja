@@ -536,44 +536,85 @@ solution Rosen(matrix (*ff)(matrix, matrix, matrix), matrix x0, matrix s0, doubl
 
 solution pen(matrix (*ff)(matrix, matrix, matrix), matrix x0, double c, double dc, double epsilon, int Nmax, matrix ud1, matrix ud2)
 {
+	/*
+	METODA FUNKCJI KARY - zgodnie z pseudokodem
+	
+	PSEUDOKOD:
+	1: i = 0
+	2: repeat
+	3:    i = i + 1
+	4:    wyznacz F^(i)(x) = f(x) + c^(i)S(x)
+	5:    wyznacz x^(i) dla F^(i) startując z x^(i-1)
+	6:    c^(i+1) = α·c^(i)
+	7:    if f_calls > Nmax then
+	8:       return error
+	9:    end if
+	10: until ||x^(i) - x^(i-1)||_2 < ε
+	11: return x* = x^(i)
+	
+	FUNKCJE KARY:
+	- Zewnętrzna: S(x) = Σ(max(0, g_i(x)))^2
+	- Wewnętrzna: S(x) = -Σ(1/g_i(x))
+	
+	PARAMETRY:
+	- Zewnętrzna: c^(1) > 0 (mała), α > 1 (zwiększamy)
+	- Wewnętrzna: c^(1) > 0 (duża), 0 < α < 1 (zmniejszamy)
+	*/
+	
 	try
 	{
 		solution Xopt;
 		
-		// 1. i = 0
+		// 1: i = 0
 		int i = 0;
 		
-		// 2. c(0) = c
-		double c_current = c;
+		// x^(0) = x0
+		solution x_prev(x0);
 		
-		// 3. x* = x(0)
-		Xopt.x = x0;
-		
-		// Parametry dla metody Nelder-Mead
+		// Parametry dla metody Nelder-Mead (simpleks)
 		double s = 0.5;			// długość krawędzi początkowego simpleksu
-		double alpha = 1.0;		// współczynnik odbicia
+		double alpha_nm = 1.0;	// współczynnik odbicia
 		double beta = 0.5;		// współczynnik kontrakcji
 		double gamma = 2.0;		// współczynnik ekspansji
 		double delta = 0.5;		// współczynnik redukcji
 		
-		// Typ funkcji kary: 0 = zewnętrzna, 1 = wewnętrzna
+		// c^(0) = c (współczynnik kary)
+		double c_current = c;
+		
+		// Typ funkcji kary z ud2: 0 = zewnętrzna, 1 = wewnętrzna
 		int penalty_type = (int)ud2(0);
 		
-		solution X_prev;
-		
-		// 4. repeat
+		// 2: repeat
 		while (true)
 		{
-			// 5. ud2_pen = [ud2, c(i)]
+			// 3: i = i + 1
+			i = i + 1;
+			
+			// 4: wyznacz F^(i)(x) = f(x) + c^(i)S(x)
+			// (funkcja kary jest obliczana w ff z ud2_pen)
+			
+			// 5: wyznacz x^(i) dla F^(i) startując z x^(i-1)
 			matrix ud2_pen(2, 1);
-			ud2_pen(0) = ud2(0);	// typ funkcji kary
-			ud2_pen(1) = c_current;	// aktualna wartość współczynnika kary
+			ud2_pen(0) = penalty_type;		// typ funkcji kary
+			ud2_pen(1) = c_current;			// c^(i)
 			
-			// 6. x(i+1) = sym_NM(ff_pen, x*, s, alpha, beta, gamma, delta, epsilon, Nmax, ud1, ud2_pen)
-			solution X_current = sym_NM(ff, Xopt.x, s, alpha, beta, gamma, delta, epsilon, Nmax, ud1, ud2_pen);
+			solution x_current = sym_NM(ff, x_prev.x, s, alpha_nm, beta, gamma, delta, epsilon, Nmax, ud1, ud2_pen);
 			
-			// 7. if ||x(i+1) - x*|| < epsilon then
-			matrix diff = X_current.x - Xopt.x;
+			// 6: c^(i+1) = α·c^(i)
+			c_current = dc * c_current;
+			
+			// 7: if f_calls > Nmax then
+			if (solution::f_calls > Nmax)
+			{
+				// 8: return error
+				Xopt = x_current;
+				Xopt.flag = 0;
+				return Xopt;
+			}
+			// 9: end if
+			
+			// 10: until ||x^(i) - x^(i-1)||_2 < ε
+			matrix diff = x_current.x - x_prev.x;
 			double norm_diff = 0.0;
 			for (int j = 0; j < get_len(diff); ++j)
 				norm_diff += pow(diff(j), 2);
@@ -581,55 +622,19 @@ solution pen(matrix (*ff)(matrix, matrix, matrix), matrix x0, double c, double d
 			
 			if (norm_diff < epsilon)
 			{
-				// 8. return x*
-				Xopt = X_current;
-				Xopt.flag = 1;
-				return Xopt;
-			}
-			// 9. end if
-			
-			// 10. x* = x(i+1)
-			Xopt = X_current;
-			
-			// 11. if fcalls > Nmax then
-			if (solution::f_calls > Nmax)
-			{
-				// 12. return error
-				Xopt.flag = 0;
-				return Xopt;
-			}
-			// 13. end if
-			
-			// 14. c(i+1) = dc * c(i)
-			if (penalty_type == 0)
-			{
-				// Zewnętrzna funkcja kary: zwiększamy c
-				c_current = dc * c_current;
-			}
-			else
-			{
-				// Wewnętrzna funkcja kary: zmniejszamy c
-				c_current = dc * c_current;
-			}
-			
-			// 15. i = i + 1
-			i++;
-			
-			// 16. until (warunek zakończenia)
-			// Zakończenie po pewnej liczbie iteracji lub gdy c jest odpowiednio duże/małe
-			if (penalty_type == 0 && c_current > 1e10)
-			{
-				Xopt.flag = 1;
-				return Xopt;
-			}
-			else if (penalty_type == 1 && c_current < 1e-10)
-			{
+				// 11: return x* = x^(i)
+				Xopt = x_current;
 				Xopt.flag = 1;
 				return Xopt;
 			}
 			
-			if (i > 100)	// maksymalna liczba iteracji zewnętrznej pętli
+			// x^(i-1) = x^(i) dla następnej iteracji
+			x_prev = x_current;
+			
+			// Dodatkowe zabezpieczenie: maksymalna liczba iteracji zewnętrznej pętli
+			if (i > 100)
 			{
+				Xopt = x_current;
 				Xopt.flag = 1;
 				return Xopt;
 			}

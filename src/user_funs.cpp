@@ -214,37 +214,52 @@ matrix ff3T(matrix x, matrix ud1, matrix ud2)				// funkcja celu dla przypadku t
 	double g2 = -x2 + 1.0;
 	double g3 = sqrt(pow(x1, 2) + pow(x2, 2)) - a;
 	
-	// Funkcja kary
+	// Funkcja kary S(x)
 	double S = 0.0;
 	
 	if (penalty_type == 0)
 	{
-		// Zewnętrzna funkcja kary: S(x) = c * suma((max(0, g_i))^2)
-		S = c * (pow(max(0.0, g1), 2) + pow(max(0.0, g2), 2) + pow(max(0.0, g3), 2));
+		// ZEWNĘTRZNA FUNKCJA KARY
+		// Wzór: S(x) = Σ(max(0, g_i(x)))^2
+		// 
+		// Dla każdego ograniczenia g_i(x) <= 0:
+		// - Jeśli g_i(x) <= 0: punkt wewnątrz, max(0, g_i) = 0, brak kary
+		// - Jeśli g_i(x) > 0: punkt poza obszarem, max(0, g_i) = g_i, kara = (g_i)^2
+		
+		S = pow(max(0.0, g1), 2) + pow(max(0.0, g2), 2) + pow(max(0.0, g3), 2);
 	}
 	else
 	{
-		// Wewnętrzna funkcja kary: S(x) = c * (-suma(1/g_i)) dla g_i < 0
-		// Dodajemy małą wartość aby uniknąć dzielenia przez zero
-		double epsilon_barrier = 1e-10;
+		// WEWNĘTRZNA FUNKCJA KARY (BARIERA LOGARYTMICZNA)
+		// Wzór: S(x) = -Σ(1/g_i(x)) dla g_i(x) < 0
+		// 
+		// MECHANIZM:
+		// - Dla punktów wewnątrz obszaru: g_i < 0
+		// - Gdy punkt zbliża się do granicy: g_i → 0⁻, więc 1/g_i → -∞
+		// - Stąd: -1/g_i → +∞ (bariera odbijająca od granicy)
+		// - Współczynnik c ZMNIEJSZA SIĘ w kolejnych iteracjach (c → 0)
+		// - Im mniejsze c, tym słabsza bariera, punkt może być bliżej granicy
 		
-		if (g1 < -epsilon_barrier)
-			S += c * (-1.0 / g1);
+		double epsilon_barrier = 1e-10;  // minimalna odległość od granicy
+		
+		// WARUNEK KONIECZNY: punkt MUSI być wewnątrz obszaru (wszystkie g_i < 0)
+		if (g1 >= -epsilon_barrier || g2 >= -epsilon_barrier || g3 >= -epsilon_barrier)
+		{
+			// Punkt jest na granicy lub poza obszarem dopuszczalnym
+			// Zwracamy bardzo dużą karę, żeby metoda optymalizacji odrzuciła ten punkt
+			S = 1e20;
+		}
 		else
-			S += 1e10;	// duża kara jeśli jesteśmy blisko lub poza granicą
-			
-		if (g2 < -epsilon_barrier)
-			S += c * (-1.0 / g2);
-		else
-			S += 1e10;
-			
-		if (g3 < -epsilon_barrier)
-			S += c * (-1.0 / g3);
-		else
-			S += 1e10;
+		{
+			// Punkt jest wewnątrz obszaru dopuszczalnego (wszystkie g_i < 0)
+			// S(x) = -Σ(1/g_i)
+			// Uwaga: g_i < 0, więc 1/g_i < 0, a zatem -1/g_i > 0
+			S = -(1.0 / g1 + 1.0 / g2 + 1.0 / g3);
+		}
 	}
 	
-	y = f + S;
+	// F(x) = f(x) + c * S(x)
+	y = f + c * S;
 	
 	return y;
 }
