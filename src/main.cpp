@@ -941,7 +941,41 @@ void lab3()
 			matrix ud2_int(1, 1);
 			ud2_int(0) = 1;				// 1 = wewnętrzna funkcja kary
 			
-			solution opt_int = pen(ff3T, x0, c_int, dc_int, epsilon, Nmax, ud1_int, ud2_int);
+			// WAŻNE: Punkt startowy dla wewnętrznej funkcji kary musi być BEZPIECZNIE wewnątrz obszaru
+			// Ograniczenia: x1 >= 1, x2 >= 1, sqrt(x1^2 + x2^2) <= a
+			// Wybieramy punkt dalej od granic, aby zapewnić g_i < 0 dla wszystkich ograniczeń
+			matrix x0_int(2, 1);
+			double safety_margin = 0.3;  // margines bezpieczeństwa
+			
+			// Losujemy punkt w bezpiecznej odległości od granic
+			double r_min_safe = sqrt(2.0) + safety_margin;  // dalej od naroża (1,1)
+			double r_max_safe = a - safety_margin;          // dalej od okręgu r=a
+			
+			if (r_min_safe >= r_max_safe) {
+				r_min_safe = (sqrt(2.0) + a) / 2.0;  // punkt w środku dostępnego zakresu
+				r_max_safe = r_min_safe;
+			}
+			
+			double r_start_int = r_min_safe + (r_max_safe - r_min_safe) * (rand() / (double)RAND_MAX);
+			double theta_start_int = M_PI / 4.0 + (M_PI / 6.0) * (rand() / (double)RAND_MAX);  // kąt 45°-60°
+			
+			x0_int(0) = r_start_int * cos(theta_start_int);
+			x0_int(1) = r_start_int * sin(theta_start_int);
+			
+			// Upewniamy się, że jesteśmy bezpiecznie wewnątrz
+			if (x0_int(0) < 1.0 + safety_margin) x0_int(0) = 1.0 + safety_margin;
+			if (x0_int(1) < 1.0 + safety_margin) x0_int(1) = 1.0 + safety_margin;
+			
+			// Sprawdzenie czy punkt jest w obszarze dopuszczalnym
+			double r_check = sqrt(pow(x0_int(0), 2) + pow(x0_int(1), 2));
+			if (r_check >= a - safety_margin) {
+				// Jeśli punkt jest za blisko granicy okręgu, przesuń go bliżej środka
+				double scale = (a - safety_margin) / r_check * 0.95;
+				x0_int(0) *= scale;
+				x0_int(1) *= scale;
+			}
+			
+			solution opt_int = pen(ff3T, x0_int, c_int, dc_int, epsilon, Nmax, ud1_int, ud2_int);
 			int fcalls_int = solution::f_calls;
 			
 			// Obliczenie odległości od początku układu współrzędnych
