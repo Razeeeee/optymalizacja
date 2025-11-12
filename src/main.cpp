@@ -853,7 +853,7 @@ void lab3()
 	double a_values[3] = { 4.0, 4.4934, 5.0 };
 	
 	// Plik CSV dla wyników (Tabela 1)
-	ofstream csv_tabela1("data/lab3_tabela1.csv");
+	ofstream csv_tabela1("../data/lab3_tabela1.csv");
 	
 	// Nagłówek (opcjonalnie, ale ułatwia analizę)
 	// csv_tabela1 << "x1_0,x2_0,x1_ext,x2_ext,r_ext,y_ext,fcalls_ext,x1_int,x2_int,r_int,y_int,fcalls_int\n";
