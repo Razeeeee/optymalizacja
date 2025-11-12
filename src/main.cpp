@@ -937,8 +937,8 @@ void lab3()
 			// - Im mniejsze c, tym słabsza bariera, punkt może być bliżej granicy
 			// - Optymalne rozwiązanie uzyskujemy gdy c → 0
 			
-			double c_int = 1.0;			// początkowa wartość (większa niż dla zewnętrznej)
-			double dc_int = 0.5;		// współczynnik ZMNIEJSZANIA (0 < dc < 1) - wolniejsze zmniejszanie = mniej iteracji
+			double c_int = 0.1;			// początkowa wartość (większa niż dla zewnętrznej)
+			double dc_int = 0.1;		// współczynnik ZMNIEJSZANIA (0 < dc < 1) - wolniejsze zmniejszanie = mniej iteracji
 			
 			matrix ud1_int(1, 1);
 			ud1_int(0) = a;				// parametr a (promień ograniczenia)
