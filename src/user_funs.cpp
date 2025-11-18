@@ -263,3 +263,148 @@ matrix ff3T(matrix x, matrix ud1, matrix ud2)				// funkcja celu dla przypadku t
 	
 	return y;
 }
+
+matrix df3(double t, matrix Y, matrix ud1, matrix ud2)
+{
+	// Y(0) = x, Y(1) = vx, Y(2) = y, Y(3) = vy
+	// ud2(0) = v0x, ud2(1) = omega
+	
+	matrix dY(4, 1);
+	
+	// Parametry fizyczne
+	double m = 0.6;					// masa piłki [kg]
+	double r = 0.12;				// promień piłki [m]
+	double g = 9.81;				// przyspieszenie ziemskie [m/s^2]
+	double C = 0.47;				// współczynnik oporu
+	double ro = 1.2;				// gęstość powietrza [kg/m^3]
+	double S = M_PI * r * r;		// pole przekroju [m^2]
+	double omega = ud2(1);			// prędkość kątowa [rad/s] (const)
+	
+	double vx = Y(1);
+	double vy = Y(3);
+	
+	// Siła oporu powietrza (zawsze przeciwna do ruchu)
+	double Dx = 0.5 * C * ro * S * vx * abs(vx);
+	double Dy = 0.5 * C * ro * S * vy * abs(vy);
+	
+	// Siła Magnusa: Fm = ro * vp x omega * pi * r^3
+	// vp jest przeciwnie skierowany niż v, więc vp = -v
+	// Dla ruchu w płaszczyźnie xy z omega = (0, 0, omega):
+	// vp x omega = (-vx, -vy, 0) x (0, 0, omega) = (-vy*omega, vx*omega, 0)
+	// Stąd: Fmx ~ -vy*omega, Fmy ~ vx*omega
+	// Ale z równania: m*d²x/dt² + Dx + Fmx = 0
+	// więc Fmx w równaniu to -Fmx_rzeczywista
+	double Fmx = ro * vy * omega * M_PI * pow(r, 3);
+	double Fmy = ro * vx * omega * M_PI * pow(r, 3);
+	
+	// Równania ruchu z polecenia:
+	// m * d²x/dt² + Dx + Fmx = 0  =>  m*ax = -Dx - Fmx
+	// m * d²y/dt² + Dy + Fmy = -mg  =>  m*ay = -Dy - Fmy - m*g
+	dY(0) = vx;									// dx/dt = vx
+	dY(1) = (-Dx - Fmx) / m;					// dvx/dt = ax = (-Dx - Fmx) / m
+	dY(2) = vy;									// dy/dt = vy
+	dY(3) = (-Dy - Fmy - m * g) / m;			// dvy/dt = ay = (-Dy - Fmy - m*g) / m
+	
+	return dY;
+}
+
+matrix ff3R(matrix x, matrix ud1, matrix ud2)
+{
+	// x(0) = v0x, x(1) = omega
+	// Celem jest maksymalizacja x_end, więc minimalizujemy -x_end
+	
+	matrix y;
+	
+	double v0x = x(0);
+	double omega = x(1);
+	
+	// Warunki początkowe: x0=0, vx0=v0x, y0=100, vy0=0
+	matrix Y0(4, 1);
+	Y0(0) = 0.0;		// x0 = 0 m
+	Y0(1) = v0x;		// vx0 = v0x m/s
+	Y0(2) = 100.0;		// y0 = 100 m
+	Y0(3) = 0.0;		// vy0 = 0 m/s
+	
+	// Parametry dla df3
+	matrix ud2_sim(2, 1);
+	ud2_sim(0) = v0x;
+	ud2_sim(1) = omega;
+	
+	// Symulacja: t0=0, dt=0.01, tend=7s
+	matrix* Y = solve_ode(df3, 0, 0.01, 7, Y0, NAN, ud2_sim);
+	
+	int n = get_len(Y[0]);
+	
+	// Znajdź x_end (x gdy piłka uderzy w ziemię, tj. y <= 0)
+	double x_end = 0.0;
+	double t_end = 0.0;
+	bool found_ground = false;
+	
+	for (int i = 0; i < n; ++i)
+	{
+		if (Y[1](i, 2) <= 0.0)  // y <= 0
+		{
+			x_end = Y[1](i, 0);  // x
+			t_end = Y[0](i, 0);  // t
+			found_ground = true;
+			break;
+		}
+	}
+	
+	if (!found_ground)
+	{
+		// Jeśli piłka nie uderzyła w ziemię w czasie symulacji
+		x_end = Y[1](n-1, 0);
+		t_end = Y[0](n-1, 0);
+	}
+	
+	// Sprawdzenie ograniczenia: dla y=50m, x powinno być w przedziale [3, 7]
+	double x_at_y50 = -1.0;
+	bool found_y50 = false;
+	
+	for (int i = 1; i < n; ++i)
+	{
+		double y_prev = Y[1](i-1, 2);
+		double y_curr = Y[1](i, 2);
+		
+		// Szukamy momentu gdy y przechodzi przez 50m (spadając)
+		if (y_prev >= 50.0 && y_curr <= 50.0)
+		{
+			// Interpolacja liniowa
+			double t_ratio = (50.0 - y_curr) / (y_prev - y_curr);
+			x_at_y50 = Y[1](i, 0) + t_ratio * (Y[1](i-1, 0) - Y[1](i, 0));
+			found_y50 = true;
+			break;
+		}
+	}
+	
+	// Obliczenie funkcji kary za naruszenie ograniczenia
+	double penalty = 0.0;
+	
+	if (found_y50)
+	{
+		// Ograniczenie: x(y=50) ∈ [3, 7]
+		if (x_at_y50 < 3.0)
+		{
+			penalty = 1000.0 * pow(3.0 - x_at_y50, 2);
+		}
+		else if (x_at_y50 > 7.0)
+		{
+			penalty = 1000.0 * pow(x_at_y50 - 7.0, 2);
+		}
+	}
+	else
+	{
+		// Jeśli nie znaleziono y=50, duża kara
+		penalty = 10000.0;
+	}
+	
+	// Funkcja celu: maksymalizujemy x_end, więc minimalizujemy -x_end
+	y = -x_end + penalty;
+	
+	// Czyszczenie pamięci
+	Y[0].~matrix();
+	Y[1].~matrix();
+	
+	return y;
+}

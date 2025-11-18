@@ -641,7 +641,7 @@ void lab2()
 	// ================================================================
 	// ===== CZĘŚĆ 2: PROBLEM RZECZYWISTY - OPTYMALIZACJA RAMIENIA =====
 	// ================================================================
-	
+
 	cout << "\n\n=== LAB 2 CZĘŚĆ 2: PROBLEM RZECZYWISTY - RAMIĘ ROBOTA ===\n\n";
 	
 	/*
@@ -815,7 +815,7 @@ void lab2()
 	Y_hj_sim[0].~matrix(); Y_hj_sim[1].~matrix();
 	Y_rosen_sim[0].~matrix(); Y_rosen_sim[1].~matrix();
 	
-	cout << "\n=== LAB 2 CZĘŚĆ 2 ZAKOŃCZONA ===\n";
+	cout << "\n=== LAB 2 CZĘŚĆ 2 ZAKOŃCZONE ===\n";
 }
 
 
@@ -854,9 +854,6 @@ void lab3()
 	
 	// Plik CSV dla wyników (Tabela 1)
 	ofstream csv_tabela1("../data/lab3_tabela1.csv");
-	
-	// Nagłówek (opcjonalnie, ale ułatwia analizę)
-	// csv_tabela1 << "x1_0,x2_0,x1_ext,x2_ext,r_ext,y_ext,fcalls_ext,x1_int,x2_int,r_int,y_int,fcalls_int\n";
 	
 	cout << "TABELA 1 - Struktura kolumn (12 kolumn, 300 wierszy):\n";
 	cout << "  Kol 1-2:   x1(0), x2(0) - punkt startowy\n";
@@ -976,8 +973,325 @@ void lab3()
 	csv_tabela1.close();
 	
 	cout << "Wyniki zapisane do: ../data/lab3_tabela1.csv\n";
-	cout << "\n=== LAB 3 ZAKOŃCZONE ===\n";
-}void lab4()
+	cout << "\n=== LAB 3 CZĘŚĆ TESTOWA ZAKOŃCZONA ===\n";
+	
+	// ================================================================
+	// ===== CZĘŚĆ 2: PROBLEM RZECZYWISTY - LOT PIŁKI Z EFEKTEM MAGNUSA =====
+	// ================================================================
+	
+	cout << "\n\n=== LAB 3 CZĘŚĆ 2: PROBLEM RZECZYWISTY - LOT PIŁKI ===\n\n";
+	
+	/*
+	Problem: Optymalizacja lotu piłki z efektem Magnusa
+	
+	Parametry:
+	- m = 600g = 0.6 kg (masa piłki)
+	- r = 12cm = 0.12 m (promień piłki)
+	- y0 = 100m (wysokość początkowa)
+	- vy0 = 0 m/s (początkowa prędkość pionowa)
+	- x0 = 0 m (początkowe położenie poziome)
+	- v0x ∈ [−10,10] m/s (prędkość pozioma początkowa - zmienna decyzyjna)
+	- ω ∈ [−10,10] rad/s (prędkość kątowa - zmienna decyzyjna)
+	
+	Równania ruchu:
+	- m * d²x/dt² + Dx + Fmx = 0
+	- m * d²y/dt² + Dy + Fmy = -m*g
+	
+	gdzie:
+	- Dx = 0.5 * C * ρ * S * vx * |vx| (opór powietrza w kierunku x)
+	- Dy = 0.5 * C * ρ * S * vy * |vy| (opór powietrza w kierunku y)
+	- Fmx = ρ * vy * ω * π * r³ (siła Magnusa w kierunku x)
+	- Fmy = -ρ * vx * ω * π * r³ (siła Magnusa w kierunku y)
+	- C = 0.47 (współczynnik oporu)
+	- ρ = 1.2 kg/m³ (gęstość powietrza)
+	- S = π * r² (pole przekroju)
+	- g = 9.81 m/s² (przyspieszenie ziemskie)
+	
+	Cel: maksymalizacja x_end (zasięgu poziomego)
+	
+	Ograniczenie: dla y = 50m, x ∈ [3, 7]m (piłka musi minąć punkt (5, 50) w odległości max 2m)
+	
+	Symulacja: t0 = 0s, dt = 0.01s, t_end = 7s
+	*/
+	
+	// WERYFIKACJA POPRAWNOŚCI IMPLEMENTACJI
+	cout << "=== WERYFIKACJA POPRAWNOŚCI IMPLEMENTACJI ===\n";
+	cout << "Symulacja dla v0x = 5 m/s, omega = 10 rad/s\n\n";
+	cout << "Rozpoczynam symulację...\n" << flush;
+	
+	matrix x_test(2, 1);
+	x_test(0) = 5.0;		// v0x = 5 m/s
+	x_test(1) = 10.0;		// omega = 10 rad/s
+	
+	// Warunki początkowe
+	matrix Y0_test(4, 1);
+	Y0_test(0) = 0.0;		// x0 = 0 m
+	Y0_test(1) = 5.0;		// vx0 = 5 m/s
+	Y0_test(2) = 100.0;		// y0 = 100 m
+	Y0_test(3) = 0.0;		// vy0 = 0 m/s
+	
+	matrix ud2_test(2, 1);
+	ud2_test(0) = 5.0;		// v0x
+	ud2_test(1) = 10.0;		// omega
+	
+	// Symulacja
+	matrix* Y_test = solve_ode(df3, 0, 0.01, 7, Y0_test, NAN, ud2_test);
+	int n_test = get_len(Y_test[0]);
+	
+	// Znajdź x_end i t_end (gdy piłka uderzy w ziemię)
+	double x_end_test = 0.0;
+	double t_end_test = 0.0;
+	bool found_ground_test = false;
+	
+	for (int i = 0; i < n_test; ++i)
+	{
+		if (Y_test[1](i, 2) <= 0.0)  // y <= 0
+		{
+			x_end_test = Y_test[1](i, 0);
+			t_end_test = Y_test[0](i, 0);
+			found_ground_test = true;
+			break;
+		}
+	}
+	
+	if (!found_ground_test)
+	{
+		x_end_test = Y_test[1](n_test-1, 0);
+		t_end_test = Y_test[0](n_test-1, 0);
+	}
+	
+	// Znajdź x dla y = 50m
+	double x_at_y50_test = 0.0;
+	double t_at_y50_test = 0.0;
+	bool found_y50_test = false;
+	
+	for (int i = 1; i < n_test; ++i)
+	{
+		double y_prev = Y_test[1](i-1, 2);
+		double y_curr = Y_test[1](i, 2);
+		
+		if (y_prev >= 50.0 && y_curr <= 50.0)
+		{
+			// Interpolacja liniowa
+			double t_ratio = (50.0 - y_curr) / (y_prev - y_curr);
+			x_at_y50_test = Y_test[1](i, 0) + t_ratio * (Y_test[1](i-1, 0) - Y_test[1](i, 0));
+			t_at_y50_test = Y_test[0](i, 0) + t_ratio * (Y_test[0](i-1, 0) - Y_test[0](i, 0));
+			found_y50_test = true;
+			break;
+		}
+	}
+	
+	// Wyniki
+	cout << "Wyniki symulacji:\n";
+	cout << "  t_end = " << t_end_test << " s (oczekiwane: ≈ 5.96 s)\n";
+	cout << "  x_end = " << x_end_test << " m (oczekiwane: ≈ 41.41 m)\n";
+	
+	if (found_y50_test)
+	{
+		cout << "  Dla y = 50 m:\n";
+		cout << "    t ≈ " << t_at_y50_test << " s\n";
+		cout << "    x ≈ " << x_at_y50_test << " m (oczekiwane: ≈ 21.61 m)\n";
+	}
+	else
+	{
+		cout << "  UWAGA: Nie znaleziono punktu y = 50 m\n";
+	}
+	
+	cout << "\nWeryfikacja:\n";
+	
+	bool t_end_ok = abs(t_end_test - 5.96) < 0.1;
+	bool x_end_ok = abs(x_end_test - 41.41) < 1.0;
+	bool x_y50_ok = found_y50_test && abs(x_at_y50_test - 21.61) < 1.0;
+	
+	if (t_end_ok && x_end_ok && x_y50_ok)
+	{
+		cout << "  ✓ POPRAWNA IMPLEMENTACJA - wszystkie wartości zgodne z oczekiwanymi\n";
+	}
+	else
+	{
+		cout << "  Szczegóły:\n";
+		cout << "    t_end: " << (t_end_ok ? "✓" : "✗") << " (różnica: " << abs(t_end_test - 5.96) << " s)\n";
+		cout << "    x_end: " << (x_end_ok ? "✓" : "✗") << " (różnica: " << abs(x_end_test - 41.41) << " m)\n";
+		cout << "    x(y=50): " << (x_y50_ok ? "✓" : "✗") << " (różnica: " << abs(x_at_y50_test - 21.61) << " m)\n";
+	}
+	
+	cout << "==========================================\n\n";
+	
+	// Czyszczenie pamięci
+	Y_test[0].~matrix();
+	Y_test[1].~matrix();
+	
+	cout << "==========================================\n\n";
+	
+	// ================================================================
+	// ===== OPTYMALIZACJA RZECZYWISTA =====
+	// ================================================================
+	
+	cout << "=== OPTYMALIZACJA RZECZYWISTA - LOT PIŁKI ===\n\n";
+	
+	/*
+	Cel: Maksymalizacja zasięgu poziomego x_end
+	Ograniczenie: dla y = 50m, x musi być w przedziale [3, 7]m
+	
+	Zmienne decyzyjne:
+	- v0x ∈ [-10, 10] m/s (początkowa prędkość pozioma)
+	- ω ∈ [-10, 10] rad/s (prędkość kątowa)
+	*/
+	
+	// Punkt startowy dla optymalizacji
+	matrix x0_real_opt(2, 1);
+	x0_real_opt(0) = 5.0;		// v0x = 5 m/s (z weryfikacji)
+	x0_real_opt(1) = 5.0;		// omega = 5 rad/s
+	
+	cout << "Punkt startowy:\n";
+	cout << "  v0x(0) = " << x0_real_opt(0) << " m/s\n";
+	cout << "  ω(0) = " << x0_real_opt(1) << " rad/s\n\n";
+	
+	// Parametry optymalizacji z funkcją kary zewnętrzną
+	double epsilon_opt = 1e-3;
+	int Nmax_opt = 10000;
+	double c_opt = 1.0;
+	double dc_opt = 2.0;
+	
+	matrix ud1_opt;		// pusty - nie używamy ud1 dla problemu rzeczywistego
+	matrix ud2_opt(1, 1);
+	ud2_opt(0) = 0;		// 0 = zewnętrzna funkcja kary
+	
+	cout << "Rozpoczynam optymalizację z zewnętrzną funkcją kary...\n";
+	cout << "Parametry: c = " << c_opt << ", dc = " << dc_opt << ", epsilon = " << epsilon_opt << "\n\n";
+	
+	solution::clear_calls();
+	solution opt_real = pen(ff3R, x0_real_opt, c_opt, dc_opt, epsilon_opt, Nmax_opt, ud1_opt, ud2_opt);
+	int fcalls_opt = solution::f_calls;
+	
+	cout << "Optymalizacja zakończona!\n\n";
+	
+	// Symulacja dla optymalnych wartości
+	cout << "=== WYNIKI OPTYMALIZACJI ===\n";
+	cout << "Optymalne wartości:\n";
+	cout << "  v0x* = " << opt_real.x(0) << " m/s\n";
+	cout << "  ω* = " << opt_real.x(1) << " rad/s\n";
+	cout << "  Liczba wywołań funkcji celu: " << fcalls_opt << "\n\n";
+	
+	// Przeprowadzenie symulacji dla optymalnych wartości
+	matrix Y0_opt(4, 1);
+	Y0_opt(0) = 0.0;				// x0 = 0 m
+	Y0_opt(1) = opt_real.x(0);		// vx0 = v0x*
+	Y0_opt(2) = 100.0;				// y0 = 100 m
+	Y0_opt(3) = 0.0;				// vy0 = 0 m/s
+	
+	matrix ud2_sim(2, 1);
+	ud2_sim(0) = opt_real.x(0);		// v0x*
+	ud2_sim(1) = opt_real.x(1);		// omega*
+	
+	matrix* Y_opt = solve_ode(df3, 0, 0.01, 7, Y0_opt, NAN, ud2_sim);
+	int n_opt = get_len(Y_opt[0]);
+	
+	// Znajdź x_end (gdy piłka uderzy w ziemię)
+	double x_end_opt = 0.0;
+	double t_end_opt = 0.0;
+	bool found_ground_opt = false;
+	
+	for (int i = 0; i < n_opt; ++i)
+	{
+		if (Y_opt[1](i, 2) <= 0.0)  // y <= 0
+		{
+			x_end_opt = Y_opt[1](i, 0);
+			t_end_opt = Y_opt[0](i, 0);
+			found_ground_opt = true;
+			break;
+		}
+	}
+	
+	if (!found_ground_opt)
+	{
+		x_end_opt = Y_opt[1](n_opt-1, 0);
+		t_end_opt = Y_opt[0](n_opt-1, 0);
+	}
+	
+	// Znajdź x dla y = 50m
+	double x_at_y50_opt = 0.0;
+	bool found_y50_opt = false;
+	
+	for (int i = 1; i < n_opt; ++i)
+	{
+		double y_prev = Y_opt[1](i-1, 2);
+		double y_curr = Y_opt[1](i, 2);
+		
+		if (y_prev >= 50.0 && y_curr <= 50.0)
+		{
+			// Interpolacja liniowa
+			double t_ratio = (50.0 - y_curr) / (y_prev - y_curr);
+			x_at_y50_opt = Y_opt[1](i, 0) + t_ratio * (Y_opt[1](i-1, 0) - Y_opt[1](i, 0));
+			found_y50_opt = true;
+			break;
+		}
+	}
+	
+	cout << "Wyniki symulacji:\n";
+	cout << "  x_end* = " << x_end_opt << " m (zasięg poziomy)\n";
+	cout << "  t_end = " << t_end_opt << " s\n";
+	
+	if (found_y50_opt)
+	{
+		cout << "  x* dla y = 50m: " << x_at_y50_opt << " m";
+		
+		// Sprawdzenie czy spełnione jest ograniczenie [3, 7]m
+		if (x_at_y50_opt >= 3.0 && x_at_y50_opt <= 7.0)
+			cout << " ✓ (spełnia ograniczenie [3, 7]m)\n";
+		else
+			cout << " ✗ (NIE spełnia ograniczenia [3, 7]m)\n";
+	}
+	else
+	{
+		cout << "  UWAGA: Nie znaleziono punktu y = 50 m\n";
+		x_at_y50_opt = 0.0;  // wartość domyślna dla zapisu
+	}
+	
+	cout << "\n";
+	
+	// ===== TABELA 3 =====
+	ofstream csv_tabela3_real("../data/lab3_tabela3_real.csv");
+	
+	cout << "TABELA 3 - Wyniki optymalizacji (1 wiersz, 7 kolumn):\n";
+	cout << "Kolumny: v0x(0), ω(0), v0x*, ω*, xend*, x* dla y=50m, fcalls\n";
+	
+	csv_tabela3_real << x0_real_opt(0) << "," << x0_real_opt(1) << ","
+					 << opt_real.x(0) << "," << opt_real.x(1) << ","
+					 << x_end_opt << "," << x_at_y50_opt << "," << fcalls_opt << "\n";
+	
+	csv_tabela3_real.close();
+	
+	cout << "Zapisano do: ../data/lab3_tabela3_real.csv\n\n";
+	
+	// ===== SYMULACJA - TRAJEKTORIA LOTU =====
+	ofstream csv_symulacja("../data/lab3_symulacja_real.csv");
+	
+	cout << "SYMULACJA - Trajektoria lotu piłki (3 kolumny: t, x, y):\n";
+	
+	for (int i = 0; i < n_opt; ++i)
+	{
+		csv_symulacja << Y_opt[0](i, 0) << ","		// t
+					  << Y_opt[1](i, 0) << ","		// x
+					  << Y_opt[1](i, 2) << "\n";	// y
+		
+		// Przerwij symulację gdy piłka uderzy w ziemię
+		if (Y_opt[1](i, 2) <= 0.0)
+			break;
+	}
+	
+	csv_symulacja.close();
+	
+	cout << "Zapisano do: ../data/lab3_symulacja_real.csv\n";
+	cout << "Dane gotowe do narysowania wykresu trajektorii lotu piłki.\n\n";
+	
+	// Czyszczenie pamięci
+	Y_opt[0].~matrix();
+	Y_opt[1].~matrix();
+	
+	cout << "=== LAB 3 ZAKOŃCZONE ===\n";
+}
+void lab4()
 {
 
 }
