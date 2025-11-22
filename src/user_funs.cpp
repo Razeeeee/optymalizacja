@@ -378,25 +378,45 @@ matrix ff3R(matrix x, matrix ud1, matrix ud2)
 		}
 	}
 	
-	// Obliczenie funkcji kary za naruszenie ograniczenia
+	// Obliczenie funkcji kary za naruszenie ograniczeń
 	double penalty = 0.0;
 	
+	// Ograniczenie 1: v0x ∈ [-10, 10] m/s
+	if (v0x < -10.0)
+	{
+		penalty += 1000.0 * pow(-10.0 - v0x, 2);
+	}
+	else if (v0x > 10.0)
+	{
+		penalty += 1000.0 * pow(v0x - 10.0, 2);
+	}
+	
+	// Ograniczenie 2: omega ∈ [-10, 10] rad/s
+	if (omega < -10.0)
+	{
+		penalty += 1000.0 * pow(-10.0 - omega, 2);
+	}
+	else if (omega > 10.0)
+	{
+		penalty += 1000.0 * pow(omega - 10.0, 2);
+	}
+	
+	// Ograniczenie 3: x(y=50) ∈ [3, 7]
 	if (found_y50)
 	{
-		// Ograniczenie: x(y=50) ∈ [3, 7]
 		if (x_at_y50 < 3.0)
 		{
-			penalty = 1000.0 * pow(3.0 - x_at_y50, 2);
+			penalty += 1000.0 * pow(3.0 - x_at_y50, 2);
 		}
 		else if (x_at_y50 > 7.0)
 		{
-			penalty = 1000.0 * pow(x_at_y50 - 7.0, 2);
+			penalty += 1000.0 * pow(x_at_y50 - 7.0, 2);
 		}
 	}
 	else
 	{
 		// Jeśli nie znaleziono y=50, duża kara
-		penalty = 10000.0;
+		penalty += 10000.0;
 	}
 	
 	// Funkcja celu: maksymalizujemy x_end, więc minimalizujemy -x_end
